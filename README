@@ -1,0 +1,47 @@
+The Weaver Daemon has two executables: int, which is used for
+standalone threading, and is basically a debugging tool, and weaverd,
+which is the actual program to use.
+
+weaverd takes the following parameters:
+
+--port, p:    The port number to listen to
+--index, -i:  Where the thread files will be stored
+--help:       A short help message
+--spool, -s:  Where the news spool is
+
+After it has started up, it sits in an eternal accept() loop listening
+for connections.
+
+After accepting a connection, it accepts the commands listed below.
+Each command is one line.  Each connection may feed weaverd an
+arbitrary number of commands.
+
+input FILE-NAME
+    Parse FILE-NAME as a news article and thread it.  The name
+    has to correspond to the --spool setting, so if --spool is
+    "/usr/lib/news", then FILE-NAME would typically be 
+    "/usr/lib/news/articles/comp/lang/lisp/342532".  
+
+    weaverd doesn't return anything.
+
+group-thread GROUP-NAME FROM TO
+    Output threads for articles FROM to TO in group GROUP-NAME.
+    FROM and TO is here in logical thread order, not article number
+    order.
+   
+    The threads requested are output, one per line.
+
+group MATCH
+    Output all groups that match MATCH.
+
+    One group per line.
+
+flatten
+    Normally when weaverd starts up, it's in non-flattening mode,
+    which speeds things up a lot when inputting tons of messages.
+    This command switches flattening mode on, and should be given to
+    weaverd before any clients connect to it to query it for threads.
+
+
+
+
