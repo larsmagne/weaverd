@@ -1,6 +1,9 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+#undef DEBUG
+
+
 #define MAX_GROUPS (1024 * 16)
 #define GROUP_FILE "groups.db"
 #define NODE_FILE "nodes.db"

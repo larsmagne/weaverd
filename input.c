@@ -129,7 +129,9 @@ int thread_file(const char *file_name) {
     fgroup = get_group(group_name);
     group_id = fgroup->group_id;
 
+    /* Strip pointy brackets. */
     fix_message_id(pa->message_id);
+    /* Find the final Message-ID in References. */
     fix_parent_message_id(pa->parent_message_id); 
 
     tnode = get_node(pa->message_id, group_id);

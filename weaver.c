@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <gmime/gmime.h>
 
 #include "weaver.h"
 #include "config.h"
@@ -16,6 +17,7 @@
 #include "../mdb/util.h"
 
 group groups[MAX_GROUPS];
+int inhibit_thread_flattening = 0;
 
 node *nodes;
 unsigned int nodes_length = 0;
@@ -23,6 +25,10 @@ char *index_dir = NULL;
 
 static unsigned int current_node = 0;
 static int node_file = 0;
+
+#define MAX_ARTICLES 1000000
+
+static int flattened[MAX_ARTICLES];
 
 unsigned int next_id(void) {
   return current_node++;
@@ -148,6 +154,11 @@ void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
 	 nnode->next_instance != 0)
     nnode = &nodes[nnode->next_instance];
 
+  if (flattened[nnode->id]) 
+    return;
+
+  flattened[nnode->id] = 1;
+
   if (nnode->group_id == group_id) {
     tnode = &(tnodes[thread_index++]);
     tnode->id = nnode->id;
@@ -173,6 +184,7 @@ void flatten_threads(group *tgroup) {
     group_id = tgroup->group_id;
 
   thread_index = 0;
+  bzero(flattened, MAX_ARTICLES * sizeof(int));
 
   for (i = 0; i<max; i++) {
     if ((id = tgroup->numeric_nodes[i]) != 0) {
@@ -202,17 +214,20 @@ void enter_node_threadly(group *tgroup, node *tnode) {
     }
   }
 
-  flatten_threads(tgroup);
+  if (! inhibit_thread_flattening)
+    flatten_threads(tgroup);
 }
 
-void extend_group_node_tables(group *tgroup) {
-  unsigned int length = tgroup->nodes_length, new_length;
+void extend_group_node_tables(group *tgroup, unsigned int min) {
+  unsigned int length = tgroup->nodes_length, new_length = 0;
   unsigned int area, new_area;
 
-  if (length == 0) 
-    new_length = 64;
-  else
-    new_length = length * 2;
+  while (new_length < min) {
+    if (length == 0) 
+      new_length = 64;
+    else
+      new_length = length * 2;
+  }
 
   area = length * sizeof(int);
   new_area = new_length * sizeof(int);
@@ -234,7 +249,7 @@ void thread(node *tnode, int do_thread) {
   unsigned int number = tnode->number;
 
   if (number >= tgroup->nodes_length)
-    extend_group_node_tables(tgroup);
+    extend_group_node_tables(tgroup, number);
 
   enter_node_numerically(tgroup, tnode);
   if (do_thread) {
@@ -261,4 +276,33 @@ void output_threads(char *group_name) {
 	   get_string(nnode->message_id), 
 	   get_string(nnode->subject));
   }
+}
+
+void output_group_threads(const char *group_name, int from, int to) {
+  group *g = get_group(group_name);
+  int total = g->total_articles, i;
+  node *nnode;
+  thread_node *tnode;
+  
+  for (i = 1; i<total; i++) {
+    tnode = &(g->thread_nodes[i]);
+    nnode = &nodes[tnode->id];
+    if (! nnode->id)
+      break;
+    printf("%d %d, %s %s %s\n", i, tnode->depth,
+	   get_string(nnode->author), 
+	   get_string(nnode->message_id), 
+	   get_string(nnode->subject));
+  }
+}
+
+void output_groups(const char *match) {
+}
+
+void init(void) {
+  //g_mime_init(GMIME_INIT_FLAG_UTF8);
+  index_dir = "/index/weave";
+  g_mime_init(0);
+  init_hash();
+  init_nodes();
 }

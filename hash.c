@@ -271,7 +271,7 @@ void populate_group_table_from_file(int fd) {
       g->thread_nodes = NULL;
       g->nodes_length = 0;
       get_group(get_string(g->group_name));
-#if DEBUG
+#ifdef DEBUG
       printf("%s (%d, %d)\n", get_string(g->group_name), g->total_articles,
 	     g->max_article);
 #endif

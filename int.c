@@ -63,16 +63,10 @@ int main(int argc, char **argv)
   int dirn;
   struct stat stat_buf;
 
-  //g_mime_init(GMIME_INIT_FLAG_UTF8);
-  g_mime_init(0);
-
-  index_dir = "/index/weave";
-
   dirn = parse_args(argc, argv);
   
   /* Initialize key/data structures. */
-  init_hash();
-  init_nodes();
+  init();
 
   if (output_thread) {
     output_threads("gmane.discuss");

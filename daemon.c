@@ -14,6 +14,7 @@
 
 #include "weaver.h"
 #include "config.h"
+#include "input.h"
 #include "../mdb/util.h"
 #include "hash.h"
 
@@ -74,7 +75,6 @@ int parse_args(int argc, char **argv) {
 int main(int argc, char **argv) {
   int wsd;
   int addlen, peerlen;
-  FILE *client;
   time_t now;
   char *s;
   char buffer[BUFFER_SIZE];
@@ -83,11 +83,15 @@ int main(int argc, char **argv) {
   int nitems = 0;
   static int so_reuseaddr = TRUE;
   int dirn, i;
+  char *command, *group_name;
+  int from, to;
+  int message;
 
   dirn = parse_args(argc, argv);
 
-  init_hash();
-  init_nodes();
+  init();
+  /* Inhibit thread flattering by default. */
+  inhibit_thread_flattening = 1;
 
   if (signal(SIGHUP, closedown) == SIG_ERR) {
     perror("Signal");
@@ -130,11 +134,6 @@ int main(int argc, char **argv) {
 
     time(&now);
 
-    /*
-    client = fdopen(wsd, "r+");
-    fgets(buffer, BUFFER_SIZE, client);
-    */
-    
     i = 0;
     while (read(wsd, buffer+i, 1) == 1 &&
 	   *(buffer+i) != '\n' &&
@@ -143,6 +142,9 @@ int main(int argc, char **argv) {
     if (*(buffer+i) == '\n')
       *(buffer+i+1) = 0;
 
+    if (*buffer == 0) 
+      goto out;
+    
     printf("Got %s", buffer);
 
     s = strtok(buffer, " \n");
@@ -154,28 +156,35 @@ int main(int argc, char **argv) {
     
     expression[nitems] = NULL;
 
+    message = 1;
+
     if (nitems >= 1) {
-      if (!strcmp(expression[0], "search")) {
-	printf("Searching...\n");
-	search(expression + 1, wsd);
-      } else if (!strcmp(expression[0], "index")) {
-	index_file(expression[1]);
-      } else if (!strcmp(expression[0], "word")) {
-	index_word(expression[1], 1, 2);
-      } else if (!strcmp(expression[0], "flush")) {
-	printf("Flushing...\n");
-	soft_flush();
-	flush_indexed_file();
-      }
+      command = expression[0];
+      if (!strcmp(command, "group-thread") && nitems == 5) {
+	group_name = expression[1];
+	from = atoi(expression[2]);
+	to = atoi(expression[3]);
+	printf("Outputting thread for %s (%d-%d)\n",
+	       group_name, from, to);
+	output_group_threads(group_name, from, to);
+      } else if (!strcmp(command, "input")) {
+	thread_file(expression[1]);
+	message = 0;
+      } else if (!strcmp(command, "groups") && nitems == 2) {
+	output_groups(expression[1]);
+      } else if (!strcmp(command, "flatten")) {
+	inhibit_thread_flattening = 0;
+	flatten_groups();
+      } 
     }
 
-    /*
-    fclose(client);
-    */
+  out:
     close(wsd);
 
-    time(&now);
-    printf("Connection closed at %s", ctime(&now));
+    if (message) {
+      time(&now);
+      printf("Connection closed at %s", ctime(&now));
+    }
   }
 
   exit(1);
@@ -186,7 +195,7 @@ void closedown(int i) {
 
  if (server_socket)
    close(server_socket);
- soft_flush();
+ flush_hash();
  printf("Closed down at %s", ctime(&now));
  exit(0);
 }

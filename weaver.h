@@ -54,10 +54,15 @@ void init_nodes(void);
 void flatten_threads(group *tgroup);
 void output_threads(char *group_name);
 void store_node(node *nnode);
+void output_group_threads(const char *group_name, int from, int to);
+void output_groups(const char *match);
+void init(void);
+void flatten_groups(void);
 
 extern char *index_dir;
 extern group groups[];
 extern node *nodes;
+extern int inhibit_thread_flattening;
 
 #endif
 

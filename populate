@@ -1,5 +1,7 @@
 #!/usr/bin/perl
 
+$nc = $ARGV[0];
+
 sub files_in_dir {
     local $dir = shift;
     local @entries;
@@ -10,10 +12,15 @@ sub files_in_dir {
     return reverse @entries;
 }
 
-$dir = "/mirror/var/spool/news/articles/gmane/discuss";
+$dir = "/mirror/var/spool/news/articles/gmane/test";
 
 foreach $file (files_in_dir($dir)) {
     if ($file =~ /^[0-9]+$/) {
+	if ($nc) {
+	    open(WEAVERD, "| nc localhost 8010") || die;
+	    print WEAVERD "input $dir/$file\n";
+	    close(WEAVERD);
+	}
 	print "$dir/$file\n";
     }
 }
