@@ -13,7 +13,7 @@
 #define NEWS_SPOOL "/mirror/var/spool/news/articles/"
 #define INDEX_DIR "/index/weave"
 
-#define INITIAL_STRING_STORAGE_LENGTH (1024 * 1024 * 1100)
+#define INITIAL_STRING_STORAGE_LENGTH (1024 * 1024 * 1400)
 #define GROUP_TABLE_LENGTH MAX_GROUPS
 #define INITIAL_NODE_LENGTH (1024 * 1024 * 21)
 
