@@ -65,6 +65,27 @@ char *index_file_name(char *name) {
   return file_name;
 }
 
+void dump_group(char *group_name) {
+  group *g = find_group(group_name);
+  unsigned int *nnodes = g->numeric_nodes;
+  node *nnode;
+  int i;
+  
+  for (i = 1; i<g->nodes_length; i++) {
+    if (nnodes[i] != 0) {
+      nnode = &nodes[nnodes[i]];      
+      printf("%d %s %d %d %d %x %s\n", 
+	     i,
+	     get_string(groups[nnode->group_id].group_name),
+	     nnode->number,
+	     g->nodes_length,
+	     nnode->id,
+	     nnode->id,
+	     get_string(nnode->message_id));
+    }
+  }
+}
+
 void store_node(node *nnode) {
   memcpy(&nodes[nnode->id], nnode, sizeof(node));
 }
@@ -101,6 +122,7 @@ void flatten_groups(void) {
 #endif
     flatten_threads(g);
   }
+
 }
 
 void init_nodes(void) {
@@ -114,21 +136,23 @@ void init_nodes(void) {
  
   fsize = file_size(node_file);
   if (fsize == 0) 
-    nodes_length = 12000000;
+    nodes_length = 12000000 * sizeof(node);
   else
     nodes_length = fsize * 1.2;
 
-  nodes = (node*) cmalloc(nodes_length * sizeof(node));
+  nodes = (node*) cmalloc(nodes_length);
+
 #ifdef USAGE
   printf("Allocating %dM for nodes\n",
-	 meg(nodes_length * sizeof(node)));
+	 meg(nodes_length);
 #endif
 
   if (fsize == 0) {
     write_from(node_file, (char*)&nodes[0], sizeof(node));
+    current_node = 1;
+  } else {
+    current_node = fsize / sizeof(node);
   }
-
-  current_node = 1;
 
   read_block(node_file, (char*) nodes, fsize);
   for (i = 1; i<fsize / sizeof(node); i++) {
@@ -142,7 +166,7 @@ void init_nodes(void) {
 	   tnode->parent,
 	   tnode->group_id);
 #endif
-    get_node(get_string(tnode->message_id), tnode->group_id);
+    hash_node(get_string(tnode->message_id), tnode->id);
     thread(tnode, 0);
   }
 
@@ -226,7 +250,7 @@ void flatten_threads(group *tgroup) {
   thread_index = 0;
   bzero(flattened, max * sizeof(int));
 
-  for (i = max - 1; i>=0; i--) {
+  for (i = max; i>0; i--) {
     //printf("numeric nodes %d: %d\n", i, tgroup->numeric_nodes[i]);
     if ((id = tgroup->numeric_nodes[i]) != 0) {
       nnode = &nodes[id];
@@ -271,7 +295,7 @@ void extend_group_node_tables(group *tgroup, unsigned int min) {
   unsigned int area, new_area;
 
   new_length = length;
-  while (new_length < min) {
+  while (new_length < (min + 2)) {
     if (new_length == 0) 
       new_length = 64;
     else
@@ -304,24 +328,31 @@ void thread(node *tnode, int do_thread) {
   group *tgroup = &groups[tnode->group_id];
   unsigned int number = tnode->number;
 
-  if (number >= tgroup->nodes_length)
+  if (number + 2 >= tgroup->nodes_length)
     extend_group_node_tables(tgroup, number);
 
   enter_node_numerically(tgroup, tnode);
+
   if (do_thread) {
     tgroup->max_article = max(tgroup->max_article, tnode->number);
     tgroup->total_articles++;
     tgroup->dirtyp = 1;
     enter_node_threadly(tgroup, tnode);
   }
+
 }
 
 void output_threads(char *group_name) {
-  group *g = get_group(group_name);
-  int total = g->total_articles, i;
+  group *g = find_group(group_name);
+  int total, i;
   node *nnode;
   thread_node *tnode;
-  
+
+  if (g == NULL)
+    return;
+
+  total = g->total_articles;
+
   for (i = 1; i<total; i++) {
     tnode = &(g->thread_nodes[i]);
     nnode = &nodes[tnode->id];
@@ -365,33 +396,111 @@ int num_children(node *nnode) {
   return children;    
 }
 
+static char output_articles[MAX_THREAD_LENGTH];
+static int output_thread_length;
+static char output_children[MAX_THREAD_DEPTH];
+
+void output_thread(FILE *client, node *nnode, int depth) {
+  int j;
+
+  if (output_thread_length++ >= MAX_THREAD_LENGTH)
+    return;
+
+  output_children[depth] = num_children(nnode);
+  fprintf(client, "%d\t%d\t%s\t%s\t%s\t", 
+	  depth,
+	  nnode->number, 
+	  get_string(nnode->subject), 
+	  get_string(nnode->author),
+	  format_time(nnode->date));
+
+  for (j = 0; j<depth; j++) 
+    fprintf(client, "%d\t", output_children[j]);
+  fprintf(client, "\n");
+  if (depth > 0)
+    output_children[depth - 1]--;
+
+  if (nnode->first_child)
+    output_thread(client, &nodes[nnode->first_child], depth+1);
+  if (nnode->next_sibling)
+    output_thread(client, &nodes[nnode->next_sibling], depth);
+}
+
 void output_one_thread(FILE *client, const char *group_name, int article) {
-  group *g = get_group(group_name);
-  int i = g->numeric_nodes[article];
+  group *g = find_group(group_name);
   node *nnode;
 
-  if (i) {
-    nnode = &nodes[i];
-    while (nnode->parent) {
-      nnode = &nodes[nnode->parent];
+  if (g == NULL)
+    return;
+
+  if (article <= g->max_article) {
+    bzero(output_articles, MAX_THREAD_LENGTH);
+    output_thread_length = 0;
+
+    nnode = &nodes[g->numeric_nodes[article]];
+    output_thread(client, nnode, 0);
+  }
+  fprintf(client, ".\n");
+}
+
+void output_lookup(FILE *client, const char *message_id) {
+  node *nnode = find_node(message_id);
+  if (nnode != NULL)
+    fprintf(client, "%s\t%d\n",
+	    get_string(groups[nnode->group_id].group_name),
+	    nnode->number);
+  fprintf(client, ".\n");
+}
+
+void output_root(FILE *client, const char *group_name, int article) {
+  group *g = find_group(group_name);
+  node *nnode;
+  int i;
+
+  if (g == NULL)
+    return;
+
+  if (article <= g->max_article) {
+    i = g->numeric_nodes[article];
+    printf("Got node id %d %s\n", i, group_name);
+    if (i != 0) {
+      nnode = &nodes[i];
+      printf("In group %d, %s, %s\n", 
+	     nnode->group_id,
+	     get_string(groups[nnode->group_id].group_name),
+	     get_string(nnode->subject));
+      while (nnode->parent != 0)
+	nnode = &nodes[nnode->parent];
+      
+      fprintf(client, "%s\t%d\n", 
+	      get_string(groups[nnode->group_id].group_name),
+	      nnode->number);
     }
   }
-  
+  fprintf(client, ".\n");
 }
 
 void output_group_threads(FILE *client, const char *group_name, 
 			  int page, int page_size, 
 			  int last) {
-  group *g = get_group(group_name);
-  int total = g->threads_length, i, j;
+  group *g = find_group(group_name);
+  int total, i, j;
   node *nnode;
   thread_node *tnode;
   int start, stop, articles = 0, tstart;
-  int children[256];
-  int skip_past = page_size*page;
+  int children[MAX_THREAD_DEPTH];
+
+  if (g == NULL) {
+    fprintf(client, ".\n");
+    return;
+  }
+
+  total = g->threads_length;
 
   if (last == 0)
     last = g->max_article;
+
+  fprintf(client, "#max\t%d\n", total);
 
   /* Find the first article in this page. */
   for (start = 0; start < total; start++) {
@@ -421,7 +530,7 @@ void output_group_threads(FILE *client, const char *group_name,
       break;
   }
 
-  printf("Outputting group thread from %d\n", start);
+  printf("Outputting group thread from %d to %d, last %d\n", start, stop, last);
 
   /* We have now found the start of the first thread to
      be output to the client. */
@@ -430,7 +539,7 @@ void output_group_threads(FILE *client, const char *group_name,
       tnode = &(g->thread_nodes[i]);
       nnode = &nodes[tnode->id];
       children[tnode->depth] = num_children(nnode);
-      if (i >= start) {
+      if (i >= start && nnode->number <= last) {
 	fprintf(client, "%d\t%d\t%s\t%s\t%s\t", 
 		tnode->depth,
 		nnode->number, 
