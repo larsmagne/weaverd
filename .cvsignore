@@ -7,3 +7,5 @@ configure
 config.cache
 Makefile
 weaverd
+size
+simple
