@@ -32,6 +32,8 @@ struct option long_options[] = {
 static int output_thread = 0;
 static int input_spool = 0;
 
+void closedown(int i);
+
 int parse_args(int argc, char **argv) {
   int option_index = 0, c;
   while (1) {
@@ -61,7 +63,7 @@ int parse_args(int argc, char **argv) {
       break;
       
     case 'h':
-      printf ("Usage: we:index [--spool <directory>] <directories ...>\n");
+      printf ("Usage: int [--spool <directory>] -r\n");
       break;
 
     default:
@@ -106,20 +108,19 @@ void input_directory(const char* dir_name) {
       if (S_ISDIR(stat_buf.st_mode)) 
 	input_directory(file_name);
       else if (is_number(dp->d_name)) {
-	if (thread_file(file_name) > 0) {
-	  if (!(commands++ % 10000)) {
-	    time(&now);
-	    elapsed = now-start_time;
-	    printf("    %d files (%d/s, %d seconds)\n",
-		   commands - 1, 
-		   (elapsed?
-		    (int)(commands / elapsed):
-		    0),
-		   elapsed);
-	    printf("    %d bytes string storage per file\n",
-		   next_string / commands);
-	    mem_usage();
-	  }
+	thread_file(file_name);
+	if (!(commands++ % 10000)) {
+	  time(&now);
+	  elapsed = now-start_time;
+	  printf("    %d files (%d/s, %d seconds)\n",
+		 commands - 1, 
+		 (elapsed?
+		  (int)(commands / elapsed):
+		  0),
+		 elapsed);
+	  printf("    %d bytes string storage per file\n",
+		 next_string / commands);
+	  mem_usage();
 	}
       }
     }
@@ -132,9 +133,20 @@ int main(int argc, char **argv)
   int dirn;
   struct stat stat_buf;
   char *spool;
+  char *file;
 
   dirn = parse_args(argc, argv);
   
+  if (signal(SIGHUP, closedown) == SIG_ERR) {
+    perror("Signal");
+    exit(1);
+  }
+
+  if (signal(SIGINT, closedown) == SIG_ERR) {
+    perror("Signal");
+    exit(1);
+  }
+
   /* Initialize key/data structures. */
   init();
   time(&start_time);
@@ -150,22 +162,36 @@ int main(int argc, char **argv)
     inhibit_thread_flattening = 1;
     inhibit_file_writes = 0;
     *(spool+strlen(news_spool)-1) = 0;
-    //input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    //input_directory("/mirror/var/spool/news/articles/gmane/os/freebsd/current");
     input_directory(spool);
     flush();
     printf("Total files: %d, total nodes: %d\n", commands, current_node);
     exit(0);
   } 
 
-  if (stat(argv[dirn], &stat_buf) == -1) {
+  if (dirn == 1)
+    file = "/mirror/var/spool/news/articles/gmane/discuss/4001";
+  else
+    file = argv[dirn];
+
+  if (stat(file, &stat_buf) == -1) {
     perror("interactive");
     exit(0);
   }
       
   if (S_ISREG(stat_buf.st_mode)) 
-    thread_file(argv[dirn]);
+    thread_file(file);
 
   flush();
+  clean_up();
 
   exit(0);
+}
+
+void closedown(int i) {
+ time_t now = time(NULL);
+
+ flush();
+ printf("Closed down at %s", ctime(&now));
+ exit(0);
 }
