@@ -32,6 +32,7 @@ static int group_file = 0;
 
 static int *node_table = NULL;
 static int node_table_length = INITIAL_NODE_TABLE_LENGTH;
+unsigned int previous_instance_node = 0;
 
 static int inhibit_file_write = 0;
 
@@ -72,7 +73,9 @@ unsigned int enter_string_storage(const char *string) {
   int search = hash(string, string_length, string_storage_table_length);
   int offset;
 
+#ifdef DEBUG
   printf("Entering '%s'\n", string);
+#endif
 
   while (1) {
     offset = string_storage_table[search];
@@ -145,7 +148,9 @@ node *allocate_new_node(const char *message_id, unsigned int group_id,
   int id = next_id();
   node *nnode = &nodes[id];
 
+#ifdef DEBUG
   printf("Getting new node %d\n", id);
+#endif
 
   node_table[search] = id;
 
@@ -163,7 +168,11 @@ node *get_node(const char *message_id, unsigned int group_id) {
   int offset = 0;
   node *g;
 
+#ifdef DEBUG
   printf("Entering node '%s'\n", message_id);
+#endif
+
+  previous_instance_node = 0;
 
   while (1) {
     offset = node_table[search];
@@ -176,8 +185,6 @@ node *get_node(const char *message_id, unsigned int group_id) {
       search = 0;
   }
 
-  printf("hei %d %s\n", offset, message_id);
-
   if (! offset) 
     return allocate_new_node(message_id, group_id, search);
   else {
@@ -187,6 +194,7 @@ node *get_node(const char *message_id, unsigned int group_id) {
 	return g;
       if (g->next_instance == 0)
 	break;
+      previous_instance_node = g->id;
       g = &nodes[g->next_instance];
     } 
     return allocate_new_node(message_id, group_id, search);
@@ -205,7 +213,9 @@ group *get_group(const char *group_name) {
   int offset, group_id;
   group *g;
 
+#ifdef DEBUG
   printf("Entering group '%s'\n", group_name);
+#endif
 
   while (1) {
     offset = group_table[search];
@@ -251,12 +261,20 @@ void flush_groups(void) {
 void populate_group_table_from_file(int fd) {
   loff_t fsize = file_size(fd);
   int i;
+  group *g;
 
   for (i = 0; i<fsize/sizeof(group); i++) {
     read_block(fd, (char*)(&groups[i]), sizeof(group));
-    if (groups[i].group_name) {
-      
-      get_group(get_string(groups[i].group_name));
+    g = &groups[i];
+    if (g->group_name) {
+      g->numeric_nodes = NULL;
+      g->thread_nodes = NULL;
+      g->nodes_length = 0;
+      get_group(get_string(g->group_name));
+#if DEBUG
+      printf("%s (%d, %d)\n", get_string(g->group_name), g->total_articles,
+	     g->max_article);
+#endif
     }
   }
 }
@@ -278,15 +296,14 @@ void init_group_hash (void) {
 
 
 void init_hash (void) {
-  printf("Initializing hash stuff...\n");
   inhibit_file_write = 1;
   init_string_hash();
   init_group_hash();
   init_node_table();
   inhibit_file_write = 0;
-  printf("Initializing hash stuff...done\n");
 }
 
 void flush_hash(void) {
   flush_groups(); 
 }
+

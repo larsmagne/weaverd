@@ -24,10 +24,12 @@ struct option long_options[] = {
   {0, 0, 0, 0}
 };
 
+static int output_thread = 0;
+
 int parse_args(int argc, char **argv) {
   int option_index = 0, c;
   while (1) {
-    c = getopt_long(argc, argv, "hs:i:", long_options, &option_index);
+    c = getopt_long(argc, argv, "hts:i:", long_options, &option_index);
     if (c == -1)
       break;
 
@@ -38,6 +40,10 @@ int parse_args(int argc, char **argv) {
       
     case 'i':
       index_dir = optarg;
+      break;
+      
+    case 't':
+      output_thread = 1;
       break;
       
     case 'h':
@@ -57,7 +63,8 @@ int main(int argc, char **argv)
   int dirn;
   struct stat stat_buf;
 
-  g_mime_init(GMIME_INIT_FLAG_UTF8);
+  //g_mime_init(GMIME_INIT_FLAG_UTF8);
+  g_mime_init(0);
 
   index_dir = "/index/weave";
 
@@ -67,13 +74,16 @@ int main(int argc, char **argv)
   init_hash();
   init_nodes();
 
+  if (output_thread) {
+    output_threads("gmane.discuss");
+    exit(0);
+  } 
+
   if (stat(argv[dirn], &stat_buf) == -1) {
     perror("interactive");
     exit(0);
   }
       
-  printf("Threading...\n");
-
   if (S_ISREG(stat_buf.st_mode)) 
     thread_file(argv[dirn]);
 

@@ -57,7 +57,10 @@ parsed_article *parse_file(const char *file_name) {
       /* Get the address from the From header. */
       if ((iaddr_list = internet_address_parse_string(author)) != NULL) {
 	iaddr = iaddr_list->address;
-	strncpy(pa.author, iaddr->name, MAX_STRING_SIZE-1);
+	if (iaddr->name == NULL)
+	  *pa.author = 0;
+	else
+	  strncpy(pa.author, iaddr->name, MAX_STRING_SIZE-1);
 	internet_address_list_destroy(iaddr_list);
       } else {
 	*pa.author = 0;
@@ -79,7 +82,6 @@ parsed_article *parse_file(const char *file_name) {
 
 void fix_message_id(char *id) {
   char *p = id, *q = id, c;
-  printf("%s\n", id);
   while ((c = *p++) &&
 	 (c != '<'))
     ;
@@ -87,7 +89,6 @@ void fix_message_id(char *id) {
 	 (c != '>'))
     *q++ = c;
   *q = 0;
-  printf("%s\n", id);
 }
 
 void fix_parent_message_id(char *ids) {
@@ -97,7 +98,9 @@ void fix_parent_message_id(char *ids) {
   while (p > ids &&
 	 ((c = *p--) != '<'))
     ;
-  p += 2;
+  p++;
+  if (*p == '<')
+    p++;
   while (((c = *p++) != 0) &&
 	 (c != '>'))
     *q++ = c;
@@ -106,17 +109,18 @@ void fix_parent_message_id(char *ids) {
 
 int thread_file(const char *file_name) {
   parsed_article *pa;
-  node *tnode;
+  node *tnode, *prev_node;
   char group_name[MAX_STRING_SIZE];
   int id, group_id, article;
   group *fgroup;
 
-  printf("threading '%s'\n", file_name);  
   if (path_to_article_spec(file_name, group_name, &article)) {
     pa = parse_file(file_name);
 
+#ifdef DEBUG
     printf("%s %s %s %s\n", pa->author, pa->subject, pa->message_id,
 	   pa->parent_message_id);
+#endif
 
     /* Check that group/article hasn't been threaded already.  */
     
@@ -124,36 +128,33 @@ int thread_file(const char *file_name) {
 
     fgroup = get_group(group_name);
     group_id = fgroup->group_id;
-    fgroup->max_article = article;
-    fgroup->total_articles++;
-    fgroup->dirtyp = 1;
 
     fix_message_id(pa->message_id);
     fix_parent_message_id(pa->parent_message_id); 
-
-    printf("group id %d\n", group_id);
 
     tnode = get_node(pa->message_id, group_id);
 
     if (tnode->number != 0) 
       printf("Skipping %s/%d\n", group_name, article);
     else {
-      printf("%s %s %s %s\n", pa->author, pa->subject, pa->message_id,
-	     pa->parent_message_id);
-      
       id = tnode->id;
       tnode->number = article;
     
-      tnode->parent = get_parent(pa->parent_message_id);
+      if (*pa->parent_message_id)
+	tnode->parent = get_parent(pa->parent_message_id, group_id);
     
       /* Set next_instance in previous instances to point to us. */
+      if (previous_instance_node) {
+	prev_node = &nodes[previous_instance_node];
+	prev_node->next_instance = id;
+      }
     
       tnode->subject = enter_string_storage(pa->subject);
       tnode->author = enter_string_storage(pa->author);
       tnode->date = pa->date;
       
-      thread(tnode);
-      
+      thread(tnode, 1);
+
       write_node(tnode);
     }
   } else {

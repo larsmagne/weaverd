@@ -45,16 +45,30 @@ void extend_node_storage(void) {
   nodes_length = new_length;
 }
 
-void write_node(node *nnode) {
-  printf("Writing node\n");
-  lseek64(node_file, (loff_t)(sizeof(node) * nnode->id), SEEK_SET);
-  printf("node size: %d\n", sizeof(node));
-  write_from(node_file, (char*)nnode, sizeof(node));
-
+void store_node(node *nnode) {
   if (nnode->id > current_node)
     extend_node_storage();
-
   memcpy(&nodes[nnode->id], nnode, sizeof(node));
+}
+
+void write_node(node *nnode) {
+  lseek64(node_file, (loff_t)(sizeof(node) * nnode->id), SEEK_SET);
+  write_from(node_file, (char*)nnode, sizeof(node));
+}
+
+void flatten_groups(void) {
+  int i;
+  group *g;
+
+  for (i = 0; i<MAX_GROUPS; i++) {
+    g = &groups[i];
+    if (g->group_id != 0) {
+#ifdef DEBUG
+      printf("Flattening %s\n", get_string(g->group_name));
+#endif
+      flatten_threads(g);
+    }
+  }
 }
 
 void init_nodes(void) {
@@ -83,15 +97,168 @@ void init_nodes(void) {
   read_block(node_file, (char*) nodes, fsize);
   for (i = 1; i<fsize / sizeof(node); i++) {
     tnode = &nodes[i];
+#if 0
+    printf("Reading node %d %s %s\n    %s,\n   child %d, parent %d, group %d\n",
+	   i, get_string(tnode->author), 
+	   get_string(tnode->subject), 
+	   get_string(tnode->message_id), 
+	   tnode->first_child,
+	   tnode->parent,
+	   tnode->group_id);
+#endif
     get_node(get_string(tnode->message_id), tnode->group_id);
+    thread(tnode, 0);
+  }
+
+  flatten_groups();
+}
+
+unsigned int get_parent(const char *parent_message_id, unsigned int group_id) {
+  node *pnode = get_node(parent_message_id, group_id);
+  return pnode->id;
+}
+
+int max (int val1, int val2) {
+  if (val1 > val2)
+    return val1;
+  else
+    return val2;
+}
+
+void enter_node_numerically(group *tgroup, node *tnode) {
+  unsigned int *nnodes = tgroup->numeric_nodes;
+  nnodes[tnode->number] = tnode->id;
+}
+
+static int thread_index = 0;
+
+void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
+		    unsigned int depth) {
+  int sibling;
+  thread_node *tnode;
+
+#if 0
+  printf("Flattening %s %s, child %d\n",
+	 get_string(nnode->subject),
+	 get_string(nnode->message_id),
+	 nnode->first_child);
+#endif
+
+  while (nnode->group_id != group_id &&
+	 nnode->next_instance != 0)
+    nnode = &nodes[nnode->next_instance];
+
+  if (nnode->group_id == group_id) {
+    tnode = &(tnodes[thread_index++]);
+    tnode->id = nnode->id;
+    tnode->depth = depth;
+    if (nnode->first_child) {
+#if 0
+      printf("Descending into child\n");
+#endif
+      flatten_thread(&nodes[nnode->first_child], tnodes, group_id, depth+1);
+    }
+
+    while ((sibling = nnode->next_sibling) != 0) {
+      nnode = &nodes[nnode->next_sibling];
+      flatten_thread(nnode, tnodes, group_id, depth);
+    }
   }
 }
 
-unsigned int get_parent(const char *parent_message_id) {
-  return 0;
+void flatten_threads(group *tgroup) {
+  thread_node *tnodes = tgroup->thread_nodes;
+  node *nnode;
+  unsigned int max = tgroup->max_article, i, id, 
+    group_id = tgroup->group_id;
+
+  thread_index = 0;
+
+  for (i = 0; i<max; i++) {
+    if ((id = tgroup->numeric_nodes[i]) != 0) {
+      nnode = &nodes[id];
+      if (nnode->parent == 0) 
+	flatten_thread(nnode, tnodes, group_id, 0);
+    }
+  }
 }
 
-void thread(node *node) {
+void enter_node_threadly(group *tgroup, node *tnode) {
+  unsigned int id = tnode->id;
+  node *pnode, *snode;
+
+  /* Hook this node onto the chain of children. */
+  if (tnode->parent) {
+    pnode = &nodes[tnode->parent];
+    if (! pnode->first_child) {
+      pnode->first_child = id;
+      write_node(pnode);
+    } else {
+      snode = &nodes[pnode->first_child];
+      while (snode->next_sibling != 0)
+	snode = &nodes[snode->next_sibling];
+      snode->next_sibling = id;
+      write_node(snode);
+    }
+  }
+
+  flatten_threads(tgroup);
 }
 
+void extend_group_node_tables(group *tgroup) {
+  unsigned int length = tgroup->nodes_length, new_length;
+  unsigned int area, new_area;
 
+  if (length == 0) 
+    new_length = 64;
+  else
+    new_length = length * 2;
+
+  area = length * sizeof(int);
+  new_area = new_length * sizeof(int);
+
+  tgroup->numeric_nodes = (int*)realloc(tgroup->numeric_nodes, new_area);
+  bzero((char*)tgroup->numeric_nodes + area, new_area - area);
+
+  area = length * sizeof(thread_node);
+  new_area = new_length * sizeof(thread_node);
+
+  tgroup->thread_nodes = (thread_node*)realloc(tgroup->thread_nodes, new_area);
+  bzero((char*)tgroup->thread_nodes + area, new_area - area);
+
+  tgroup->nodes_length = new_length;
+}
+
+void thread(node *tnode, int do_thread) {
+  group *tgroup = &groups[tnode->group_id];
+  unsigned int number = tnode->number;
+
+  if (number >= tgroup->nodes_length)
+    extend_group_node_tables(tgroup);
+
+  enter_node_numerically(tgroup, tnode);
+  if (do_thread) {
+    tgroup->max_article = max(tgroup->max_article, tnode->number);
+    tgroup->total_articles++;
+    tgroup->dirtyp = 1;
+    enter_node_threadly(tgroup, tnode);
+  }
+}
+
+void output_threads(char *group_name) {
+  group *g = get_group(group_name);
+  int total = g->total_articles, i;
+  node *nnode;
+  thread_node *tnode;
+  
+  for (i = 1; i<total; i++) {
+    tnode = &(g->thread_nodes[i]);
+    nnode = &nodes[tnode->id];
+    if (! nnode->id)
+      break;
+    printf("%d %d, %s %s %s\n", i, tnode->depth,
+	   get_string(nnode->author), 
+	   get_string(nnode->message_id), 
+	   get_string(nnode->subject));
+  }
+}
