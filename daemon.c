@@ -84,11 +84,13 @@ int main(int argc, char **argv) {
   static int so_reuseaddr = TRUE;
   int dirn, i;
   char *command, *group_name;
-  int from, to;
+  int page, page_size, last;
   int message = 0;
   time_t start_time;
   int commands = 0, last_total_commands = 0;
   int elapsed;
+  FILE *client;
+  char *match;
 
   dirn = parse_args(argc, argv);
 
@@ -162,19 +164,31 @@ int main(int argc, char **argv) {
     message = 1;
 
     if (nitems >= 1) {
+      client = fdopen(wsd, "rw");
+
       command = expression[0];
-      if (!strcmp(command, "group-thread") && nitems == 5) {
+      if (!strcmp(command, "group-thread") && nitems == 6) {
 	group_name = expression[1];
-	from = atoi(expression[2]);
-	to = atoi(expression[3]);
-	printf("Outputting thread for %s (%d-%d)\n",
-	       group_name, from, to);
-	output_group_threads(group_name, from, to);
-      } else if (!strcmp(command, "input")) {
+	page = atoi(expression[2]);
+	page_size = atoi(expression[3]);
+	last = atoi(expression[4]);
+	printf("Outputting thread for %s (%d)\n",
+	       group_name, page);
+	output_group_threads(client, group_name, page, page_size, last);
+      } else if (!strcmp(command, "input") && nitems == 2) {
 	thread_file(expression[1]);
 	message = 0;
+      } else if (!strcmp(command, "thread") && nitems == 3) {
+	output_one_thread(client, expression[1], atoi(expression[2]));
+	message = 0;
       } else if (!strcmp(command, "groups") && nitems == 2) {
-	output_groups(expression[1]);
+	match = expression[1];
+	if (strlen(match) == 0)
+	  match = NULL;
+	output_groups(client, match);
+      } else if (!strcmp(command, "hierarchy") && nitems == 2) {
+	match = expression[1];
+	output_hierarchy(client, match);
       } else if (!strcmp(command, "flatten")) {
 	inhibit_thread_flattening = 0;
 	flatten_groups();
@@ -192,6 +206,7 @@ int main(int argc, char **argv) {
 	last_total_commands = commands;
       }
 
+      fclose(client);
     }
 
   out:

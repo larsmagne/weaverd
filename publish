@@ -7,6 +7,10 @@ if [ "$version" = "" ]; then
     exit
 fi
 
+if [ "$version" = "snapshot" ]; then
+    version=`date +%Y%m%d`
+fi
+
 cd /tmp
 
 cvs -d /usr/local/cvsroot co gmane/weaverd

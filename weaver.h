@@ -3,13 +3,15 @@
 
 #define MAX_SEARCH_ITEMS 1024
 
-typedef struct {
-  unsigned int group_id;
-  unsigned int number;         /* Article number in group */
-  unsigned int id;             /* Unique article id */
+typedef unsigned int node_id;
 
-  unsigned int parent;
-  unsigned int next_instance;  /* Used for cross-posting. */
+typedef struct {
+  unsigned short group_id;
+  unsigned int number;         /* Article number in group, max 3*/
+  node_id id;                  /* Unique article id */
+
+  node_id parent;
+  node_id next_instance;       /* Used for cross-posting. */
 
   /* These three are offsets into the string storage. */
   unsigned int subject;
@@ -17,13 +19,13 @@ typedef struct {
   unsigned int message_id;
   time_t date;
 
-  unsigned int first_child;
-  unsigned int next_sibling;
+  node_id first_child;
+  node_id next_sibling;
 } node;
 
 typedef struct {
   unsigned int id;
-  unsigned int depth;
+  unsigned char depth;
 } thread_node;
 
 typedef struct {
@@ -54,15 +56,26 @@ void init_nodes(void);
 void flatten_threads(group *tgroup);
 void output_threads(char *group_name);
 void store_node(node *nnode);
-void output_group_threads(const char *group_name, int from, int to);
-void output_groups(const char *match);
+void output_group_threads(FILE *client, const char *group_name,
+			  int page, int page_size,
+			  int last);
+void output_groups(FILE *client, const char *match);
 void init(void);
 void flatten_groups(void);
+int meg(int size);
+void usage(void);
+void flush(void);
+void output_one_thread(FILE *client, const char *group_name, int article);
+void alphabetize_groups(void);
+void output_hierarchy(FILE *client, const char *prefix);
 
 extern char *index_dir;
 extern group groups[];
 extern node *nodes;
 extern int inhibit_thread_flattening;
+extern int inhibit_file_writes;
+extern unsigned int mem;
+extern unsigned int current_node;
 
 #endif
 

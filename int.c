@@ -74,10 +74,11 @@ int parse_args(int argc, char **argv) {
 
 #define MAX_FILE_NAME 10000
 
-static int commands = 0, last_total_commands = 0;
+static int commands = 0;
+static time_t start_time;
 
 void input_directory(const char* dir_name) {
-  time_t start_time, now;
+  time_t now;
   int elapsed;
   DIR *dirp;
   struct dirent *dp;
@@ -86,10 +87,8 @@ void input_directory(const char* dir_name) {
 
   printf("%s\n", dir_name); 
 
-  inhibit_thread_flattening = 1;
-    
-  dirp = opendir(dir_name);
-  time(&start_time);
+  if ((dirp = opendir(dir_name)) == NULL)
+    return;
     
   while ((dp = readdir(dirp)) != NULL) {
 
@@ -107,23 +106,25 @@ void input_directory(const char* dir_name) {
       if (S_ISDIR(stat_buf.st_mode)) 
 	input_directory(file_name);
       else if (is_number(dp->d_name)) {
-	thread_file(file_name);
-
-	if (!(commands++ % 10000)) {
-	  time(&now);
-	  elapsed = now-start_time;
-	  printf("    %d files (%d/s last %d seconds)\n",
-		 commands - 1, 
-		 (elapsed?
-		  (int)((commands-last_total_commands) / elapsed):
-		  0),
-		 (int)elapsed);
-	  last_total_commands = commands;
-	  start_time = now;
+	if (thread_file(file_name) > 0) {
+	  if (!(commands++ % 10000)) {
+	    time(&now);
+	    elapsed = now-start_time;
+	    printf("    %d files (%d/s, %d seconds)\n",
+		   commands - 1, 
+		   (elapsed?
+		    (int)(commands / elapsed):
+		    0),
+		   elapsed);
+	    printf("    %d bytes string storage per file\n",
+		   next_string / commands);
+	    mem_usage();
+	  }
 	}
       }
     }
   }
+  closedir(dirp);
 }
 
 int main(int argc, char **argv)
@@ -136,6 +137,7 @@ int main(int argc, char **argv)
   
   /* Initialize key/data structures. */
   init();
+  time(&start_time);
 
   if (output_thread) {
     output_threads("gmane.discuss");
@@ -145,10 +147,13 @@ int main(int argc, char **argv)
   if (input_spool) {
     spool = cmalloc(strlen(news_spool) + 1);
     memcpy(spool, news_spool, strlen(news_spool));
+    inhibit_thread_flattening = 1;
+    inhibit_file_writes = 0;
     *(spool+strlen(news_spool)-1) = 0;
-    //input_directory("/mirror/var/spool/news/articles/gmane/os/cygwin/patches");
-    input_directory(spool);
-    flush_hash();
+    input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    //input_directory(spool);
+    flush();
+    printf("Total files: %d, total nodes: %d\n", commands, current_node);
     exit(0);
   } 
 
@@ -160,7 +165,7 @@ int main(int argc, char **argv)
   if (S_ISREG(stat_buf.st_mode)) 
     thread_file(argv[dirn]);
 
-  flush_hash();
+  flush();
 
   exit(0);
 }
