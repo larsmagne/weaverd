@@ -38,7 +38,7 @@ void closedown(int);
 
 dispatcher dispatchers[] = {
   {"group-thread",  output_group_threads, {STRING, INT, INT, INT, EOA}},
-  {"input", thread_file, {STRING, EOA}},
+  //{"input", thread_file, {STRING, EOA}},
   {"thread", output_one_thread, {STRING, INT, EOA}},
   {"root", output_root, {STRING, INT, EOA}},
   {"groups", output_groups, {STRING, EOA}},
@@ -88,13 +88,13 @@ int parse_args(int argc, char **argv) {
 }
 
 int main(int argc, char **argv) {
+  struct sockaddr_in sin, caddr;
   int wsd;
   int addlen, peerlen;
   time_t now;
   char *s;
   char buffer[BUFFER_SIZE];
   char *expression[MAX_SEARCH_ITEMS];
-  struct sockaddr_in sin, caddr;
   int nitems = 0;
   static int so_reuseaddr = TRUE;
   int dirn, i;
@@ -106,6 +106,7 @@ int main(int argc, char **argv) {
   int elapsed;
   FILE *client;
   char *match;
+  int input_times = 0, auto_flush_p = 0, read_result;
 
   dirn = parse_args(argc, argv);
 
@@ -152,18 +153,33 @@ int main(int argc, char **argv) {
   while (TRUE) {
     nitems = 0;
     wsd = accept(server_socket, (struct sockaddr*)&caddr, &addlen);
+    if (wsd == -1) {
+      printf("Server socket %d\n", server_socket);
+      perror("weaverd");
+      goto out;
+    }
     peerlen = sizeof(struct sockaddr);
 
     i = 0;
-    while (read(wsd, buffer+i, 1) == 1 &&
+    while ((read_result = read(wsd, buffer+i, 1)) >= 0 &&
 	   *(buffer+i) != '\n' &&
-	   i++ < BUFFER_SIZE)
-      ;
+	   i++ < BUFFER_SIZE) {
+      if (read_result == 0)
+	sleep(1);
+    }
+
+    if (read_result < 0) {
+      printf("Got error %d on %d\n", read_result, wsd);
+      perror("weaverd");
+    }
+    
     if (*(buffer+i) == '\n')
       *(buffer+i+1) = 0;
 
-    if (*buffer == 0) 
+    if (*buffer == 0) {
+      printf("Got empty input\n");
       goto out;
+    }
     
     printf("Got %s", buffer);
 
@@ -191,9 +207,27 @@ int main(int argc, char **argv) {
 	output_group_threads(client, group_name, page, page_size, last);
       } else if (!strcmp(command, "input") && nitems == 2) {
 	thread_file(expression[1]);
+	if (! (input_times++ % 100) && auto_flush_p)
+	  flush();
 	message = 0;
       } else if (!strcmp(command, "thread") && nitems == 3) {
 	output_one_thread(client, expression[1], atoi(expression[2]));
+	message = 0;
+      } else if (!strcmp(command, "thread-roots") && nitems == 5) {
+	output_thread_roots(client, expression[1], atoi(expression[2]), 
+			    atoi(expression[3]), atoi(expression[4]));
+	message = 0;
+      } else if (!strcmp(command, "article-period") && nitems == 6) {
+	output_articles_in_period(client, expression[1], atoi(expression[2]), 
+				  atoi(expression[3]), 
+				  atoi(expression[4]), 
+				  atoi(expression[5]));
+	message = 0;
+      } else if (!strcmp(command, "group-months") && nitems == 2) {
+	output_months(client, expression[1]);
+	message = 0;
+      } else if (!strcmp(command, "group-days") && nitems == 3) {
+	output_days(client, expression[1], atoi(expression[2]));
 	message = 0;
       } else if (!strcmp(command, "root") && nitems == 3) {
 	output_root(client, expression[1], atoi(expression[2]));
@@ -223,6 +257,9 @@ int main(int argc, char **argv) {
 	closedown(0);
       } else if (!strcmp(command, "flush")) {
 	flush();
+      } else if (!strcmp(command, "auto-flush")) {
+	flush();
+	auto_flush_p = 1;
       } 
 
       if (!(commands++ % 100)) {
