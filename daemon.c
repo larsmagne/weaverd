@@ -15,6 +15,7 @@
 #include "weaver.h"
 #include "config.h"
 #include "input.h"
+#include "dispatch.h"
 #include "../mdb/util.h"
 #include "hash.h"
 
@@ -34,6 +35,20 @@ struct option long_options[] = {
 };
 
 void closedown(int);
+
+dispatcher dispatchers[] = {
+  {"group-thread",  output_group_threads, {STRING, INT, INT, INT, EOA}},
+  {"input", thread_file, {STRING, EOA}},
+  {"thread", output_one_thread, {STRING, INT, EOA}},
+  {"root", output_root, {STRING, INT, EOA}},
+  {"groups", output_groups, {STRING, EOA}},
+  {"hierarchy", output_hierarchy, {STRING, EOA}},
+  {"lookup", output_lookup, {STRING, EOA}},
+  {"flatten", flatten_groups, {EOA}},
+  {"quit", closedown, {EOA}},
+  {"flush", flush, {EOA}},
+  {NULL, NULL, {0}}  
+};
 
 #define BUFFER_SIZE 4096
 
@@ -172,8 +187,7 @@ int main(int argc, char **argv) {
 	page = atoi(expression[2]);
 	page_size = atoi(expression[3]);
 	last = atoi(expression[4]);
-	printf("Outputting thread for %s (%d)\n",
-	       group_name, page);
+	//printf("Outputting thread for %s (%d)\n", group_name, page);
 	output_group_threads(client, group_name, page, page_size, last);
       } else if (!strcmp(command, "input") && nitems == 2) {
 	thread_file(expression[1]);
@@ -194,12 +208,21 @@ int main(int argc, char **argv) {
 	output_hierarchy(client, match);
       } else if (!strcmp(command, "lookup") && nitems == 2) {
 	output_lookup(client, expression[1]);
+      } else if (!strcmp(command, "newgroup") && nitems > 2) {
+	newgroup(client, expression[1], expression + 2, nitems - 2);
+      } else if (!strcmp(command, "rmgroup") && nitems == 2) {
+	rmgroup(client, expression[1]);
+      } else if (!strcmp(command, "cancel") && nitems == 2) {
+	cancel_message_id(client, expression[1]);
+      } else if (!strcmp(command, "cancel-article") && nitems == 3) {
+	cancel_article(client, expression[1], atoi(expression[2]));
       } else if (!strcmp(command, "flatten")) {
 	inhibit_thread_flattening = 0;
 	flatten_groups();
       } else if (!strcmp(command, "quit")) {
 	closedown(0);
-	flatten_groups();
+      } else if (!strcmp(command, "flush")) {
+	flush();
       } 
 
       if (!(commands++ % 100)) {
@@ -212,6 +235,7 @@ int main(int argc, char **argv) {
 		0),
 	       (int)elapsed);
 	last_total_commands = commands;
+	mem_usage();
       }
 
       fclose(client);
@@ -238,3 +262,5 @@ void closedown(int i) {
  printf("Closed down at %s", ctime(&now));
  exit(0);
 }
+
+
