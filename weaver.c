@@ -142,11 +142,6 @@ void init_nodes(void) {
 
   nodes = (node*) cmalloc(nodes_length);
 
-#ifdef USAGE
-  printf("Allocating %dM for nodes\n",
-	 meg(nodes_length);
-#endif
-
   if (fsize == 0) {
     write_from(node_file, (char*)&nodes[0], sizeof(node));
     current_node = 1;
@@ -157,24 +152,15 @@ void init_nodes(void) {
   read_block(node_file, (char*) nodes, fsize);
   for (i = 1; i<fsize / sizeof(node); i++) {
     tnode = &nodes[i];
-#if 0
-    printf("Reading node %d %s %s\n    %s,\n   child %d, parent %d, group %d\n",
-	   i, get_string(tnode->author), 
-	   get_string(tnode->subject), 
-	   get_string(tnode->message_id), 
-	   tnode->first_child,
-	   tnode->parent,
-	   tnode->group_id);
-#endif
     hash_node(get_string(tnode->message_id), tnode->id);
     thread(tnode, 0);
   }
-
+  
   flatten_groups();
 }
 
 unsigned int get_parent(const char *parent_message_id, unsigned int group_id) {
-  node *pnode = get_node(parent_message_id, group_id);
+  node *pnode = get_node_any(parent_message_id, group_id);
   return pnode->id;
 }
 
@@ -221,17 +207,13 @@ void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
 
   flattened[nnode->number] = 1;
 
-  if (nnode->group_id == group_id) {
+  if (nnode->group_id == group_id && nnode->author != 0) {
     tnode = &(tnodes[thread_index++]);
     tnode->id = nnode->id;
     tnode->depth = depth;
-    //printf("%d %d\n", thread_index, nnode->number);
-    if (nnode->first_child) {
-#if 0
-      printf("Descending into child\n");
-#endif
+
+    if (nnode->first_child) 
       flatten_thread(&nodes[nnode->first_child], tnodes, group_id, depth+1);
-    }
 
     while ((sibling = nnode->next_sibling) != 0) {
       nnode = &nodes[nnode->next_sibling];
@@ -400,13 +382,52 @@ static char output_articles[MAX_THREAD_LENGTH];
 static int output_thread_length;
 static char output_children[MAX_THREAD_DEPTH];
 
-void output_thread(FILE *client, node *nnode, int depth) {
-  int j;
+static node *crossposted_children[MAX_THREAD_LENGTH];
+
+int new_child_p(int children, node *nnode) {
+  int i;
+
+  for (i = 0; i < children; i++) {
+    if (crossposted_children[i]->message_id == nnode->message_id)
+      return 0;
+  }
+  return 1;
+}
+
+int num_crossposted_children(node *nnode) {
+  int children = 0;
+  int child;
+  node *cnode;
+
+  while (nnode != NULL) {
+    child = nnode->first_child;
+
+    while (child != 0) {
+      cnode = &nodes[child];
+      if (new_child_p(children, cnode)) {
+	crossposted_children[children++] = cnode;
+      }
+      child = cnode->next_sibling;
+    }
+    if (nnode->next_instance)
+      nnode = &nodes[nnode->next_instance];
+    else
+      nnode = NULL;
+  }
+
+  return children;    
+}
+
+
+
+int output_one_node(FILE *client, node *nnode, int depth) {
+  int children = 0, j;
 
   if (output_thread_length++ >= MAX_THREAD_LENGTH)
-    return;
+    return -1;
 
-  output_children[depth] = num_children(nnode);
+  children = num_crossposted_children(nnode);
+  output_children[depth] = children;
   fprintf(client, "%d\t%d\t%s\t%s\t%s\t", 
 	  depth,
 	  nnode->number, 
@@ -416,14 +437,50 @@ void output_thread(FILE *client, node *nnode, int depth) {
 
   for (j = 0; j<depth; j++) 
     fprintf(client, "%d\t", output_children[j]);
+
+  fprintf(client, "\t%s", get_string(groups[nnode->group_id].group_name));
+  
   fprintf(client, "\n");
+
+  return children;
+}
+
+void output_thread(FILE *client, node *nnode, int depth) {
+  int i, children;
+  node **cchildren;
+
+  /* Find the first instance of this Message-ID in case of
+     cross-posting. */
+  nnode = find_node(get_string(nnode->message_id));
+  if (! nnode)
+    return;
+
+  for (i = 0; i < output_thread_length; i++) {
+    if (output_articles[i] == nnode->id) {
+      printf("Got recursion with %s\n", get_string(nnode->message_id));
+      return;
+    }
+  }
+
+  output_articles[i] = nnode->id;
+
+  children = output_one_node(client, nnode, depth);
+
+  if (children == -1)
+    return;
+
   if (depth > 0)
     output_children[depth - 1]--;
 
-  if (nnode->first_child)
-    output_thread(client, &nodes[nnode->first_child], depth+1);
-  if (nnode->next_sibling)
-    output_thread(client, &nodes[nnode->next_sibling], depth);
+  cchildren = (node**) malloc(children * sizeof(node*));
+  for (i = 0; i < children; i++) 
+    cchildren[i] = crossposted_children[i];
+
+  for (i = 0; i < children; i++) 
+    output_thread(client, cchildren[i], depth + 1);
+
+  free(cchildren);
+
 }
 
 void output_one_thread(FILE *client, const char *group_name, int article) {
@@ -469,9 +526,12 @@ void output_root(FILE *client, const char *group_name, int article) {
 	     nnode->group_id,
 	     get_string(groups[nnode->group_id].group_name),
 	     get_string(nnode->subject));
-      while (nnode->parent != 0)
+      while (nnode->parent != 0 &&
+	     nodes[nnode->parent].number != 0) {
 	nnode = &nodes[nnode->parent];
-      
+	printf("Parent message_id '%s'\n", get_string(nnode->message_id));
+      }
+
       fprintf(client, "%s\t%d\n", 
 	      get_string(groups[nnode->group_id].group_name),
 	      nnode->number);
@@ -490,7 +550,7 @@ void output_group_threads(FILE *client, const char *group_name,
   int start, stop, articles = 0, tstart;
   int children[MAX_THREAD_DEPTH];
 
-  if (g == NULL) {
+  if (g == NULL || prohibited_group_p(g)) {
     fprintf(client, ".\n");
     return;
   }
@@ -530,7 +590,7 @@ void output_group_threads(FILE *client, const char *group_name,
       break;
   }
 
-  printf("Outputting group thread from %d to %d, last %d\n", start, stop, last);
+  //printf("Outputting group thread from %d to %d, last %d\n", start, stop, last);
 
   /* We have now found the start of the first thread to
      be output to the client. */
@@ -569,9 +629,7 @@ void output_groups(FILE *client, const char *match) {
 
   for (i = 1; i<num_groups; i++) {
     g = &groups[alphabetic_groups[i]];
-    if (g->group_name == 0) 
-      break;
-    if (g->group_description != 0) {
+    if (g->group_name != 0) {
       group_name = get_string(g->group_name);
       if (strstr(group_name, match)) 
 	output_group_line(client, g);
@@ -635,7 +693,7 @@ void output_prev(FILE *client, char *prev, int levels,
 }
 
 void output_hierarchy(FILE *client, const char *prefix) {
-  group *g, *prev_group;
+  group *g, *prev_group = NULL;
   int i;
   char *group_name;
   int levels = find_levels(prefix);
@@ -646,8 +704,7 @@ void output_hierarchy(FILE *client, const char *prefix) {
   for (i = 1; i<num_groups; i++) {
     g = &groups[alphabetic_groups[i]];
     group_name = get_string(g->group_name);
-    if (strstr(group_name, prefix) == group_name &&
-	g->group_description != 0) {
+    if (strstr(group_name, prefix) == group_name) {
       if (! levels_equal(prev, group_name, levels + 1)) {
 	if (prev && prev_output != prev) {
 	  prev_output = prev;
@@ -673,8 +730,8 @@ void output_hierarchy(FILE *client, const char *prefix) {
 }
 
 void init(void) {
-  //g_mime_init(GMIME_INIT_FLAG_UTF8);
-  g_mime_init(0);
+  g_mime_init(GMIME_INIT_FLAG_UTF8);
+  //g_mime_init(0);
   index_dir = "/index/weave";
   init_hash();
   init_nodes();
@@ -703,6 +760,9 @@ void flush(void) {
   }
 }
 
+void clean_up(void) {
+}
+
 int group_name_cmp(const void *sr1, const void *sr2) {
   return strcmp(get_string(groups[*(int*)sr1].group_name),
 		get_string(groups[*(int*)sr2].group_name));
@@ -715,8 +775,52 @@ void alphabetize_groups (void) {
      g = &groups[num_groups];
      if (g->group_id == 0)
        break;
-     alphabetic_groups[num_groups] = g->group_id;
+     if (! prohibited_group_p(g))
+       alphabetic_groups[num_groups] = g->group_id;
   }
 
   qsort(alphabetic_groups, num_groups, sizeof(int), group_name_cmp);
+}
+
+void cancel_article(FILE *client, const char *group_name, int article) {
+  group *g = find_group(group_name);
+  node *nnode;
+  int i;
+
+  if (g == NULL)
+    return;
+
+  if (article > g->max_article) 
+    return;
+
+  i = g->numeric_nodes[article];
+  if (i == 0) 
+    return;
+
+  nnode = &nodes[i];
+  cancel_message_id(client, get_string(nnode->message_id));  
+}
+
+void cancel_message_id(FILE *client, const char *message_id) {
+  node *nnode = find_node(message_id);
+  group *g;
+
+  if (nnode == NULL) {
+    fprintf(client, "%s does not exist.\n.\n", message_id);
+  } else {
+    while (nnode != NULL) {
+      g = &groups[nnode->group_id];
+      fprintf(client, "Cancelling %s:%d\n", 
+	      get_string(g->group_name),
+	      nnode->number);
+      nnode->author = 0;
+      write_node(nnode);
+      flatten_threads(g);
+      if (nnode->next_instance != 0)
+	nnode = &nodes[nnode->next_instance];
+      else
+	nnode = NULL;
+    }
+    fprintf(client, ".\n");
+  }
 }
