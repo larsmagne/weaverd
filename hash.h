@@ -12,6 +12,10 @@ unsigned int previous_instance_node;
 void flush_strings(void);
 group *find_group(const char *group_name);
 void hash_node(const char *message_id, unsigned int node_id);
+void newgroup (FILE *output, char *group_name, char **description, int words);
+int prohibited_group_p(group *g);
+void rmgroup(FILE *output, char *group_name);
+node *get_node_any(const char *message_id, unsigned int group_id);
 
 extern int next_string;
 
