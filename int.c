@@ -150,8 +150,8 @@ int main(int argc, char **argv)
     inhibit_thread_flattening = 1;
     inhibit_file_writes = 0;
     *(spool+strlen(news_spool)-1) = 0;
-    input_directory("/mirror/var/spool/news/articles/gmane/discuss");
-    //input_directory(spool);
+    //input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    input_directory(spool);
     flush();
     printf("Total files: %d, total nodes: %d\n", commands, current_node);
     exit(0);
