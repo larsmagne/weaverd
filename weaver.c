@@ -577,6 +577,9 @@ void output_thread(FILE *client, node *nnode, int depth) {
   int i, children;
   node **cchildren;
 
+  if (depth >= MAX_THREAD_DEPTH)
+    return;
+
   /* Find the first instance of this Message-ID in case of
      cross-posting. */
   nnode = find_node(get_string(nnode->message_id));
