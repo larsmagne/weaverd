@@ -95,8 +95,8 @@ int main(int argc, char **argv) {
   dirn = parse_args(argc, argv);
 
   init();
-  /* Inhibit thread flattering by default. */
-  inhibit_thread_flattening = 1;
+  /* Don't inhibit thread flattering by default. */
+  inhibit_thread_flattening = 0;
 
   if (signal(SIGHUP, closedown) == SIG_ERR) {
     perror("Signal");
@@ -150,7 +150,7 @@ int main(int argc, char **argv) {
     if (*buffer == 0) 
       goto out;
     
-    //printf("Got %s", buffer);
+    printf("Got %s", buffer);
 
     s = strtok(buffer, " \n");
 
@@ -164,10 +164,10 @@ int main(int argc, char **argv) {
     message = 1;
 
     if (nitems >= 1) {
-      client = fdopen(wsd, "rw");
+      client = fdopen(wsd, "r+");
 
       command = expression[0];
-      if (!strcmp(command, "group-thread") && nitems == 6) {
+      if (!strcmp(command, "group-thread") && nitems == 5) {
 	group_name = expression[1];
 	page = atoi(expression[2]);
 	page_size = atoi(expression[3]);

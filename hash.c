@@ -129,8 +129,8 @@ unsigned int initial_enter_string_storage(const char *string) {
 
   if (! offset) {
     string_storage_table[search] = next_string;
-    offset = next_string;
     next_string += string_length + 1;
+    offset = next_string;
   } 
 
   return offset;
@@ -172,8 +172,7 @@ void smart_populate_string_table_from_file(int fd) {
 
   read_block(string_storage_file, string_storage, fsize);
   while (offset < fsize) {
-    initial_enter_string_storage(string_storage + offset);
-    offset += strlen(string_storage + offset + 1);
+    offset = initial_enter_string_storage(string_storage + offset);
   }
 }
 
@@ -296,7 +295,7 @@ group *get_group(const char *group_name) {
     if (! inhibit_file_write) {
       g = &groups[group_id];
       g->group_name = enter_string_storage(group_name);
-      g->group_description = enter_string_storage("");
+      g->group_description = 0;
       g->group_id = group_id;
       g->dirtyp = 1;
     }

@@ -92,14 +92,14 @@ void flatten_groups(void) {
   int i;
   group *g;
 
-  for (i = 0; i<MAX_GROUPS; i++) {
+  for (i = 1; i<MAX_GROUPS; i++) {
     g = &groups[i];
-    if (g->group_id != 0) {
-#ifdef DEBUG
-      printf("Flattening %s\n", get_string(g->group_name));
+    if (g->group_id == 0) 
+      break;
+#if 0
+    printf("Flattening %s\n", get_string(g->group_name));
 #endif
-      flatten_threads(g);
-    }
+    flatten_threads(g);
   }
 }
 
@@ -181,7 +181,8 @@ void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
   thread_node *tnode;
 
 #if 0
-  printf("Flattening %s %s, child %d\n",
+  printf("Flattening %d, %s %s, child %d\n",
+	 nnode->id,
 	 get_string(nnode->subject),
 	 get_string(nnode->message_id),
 	 nnode->first_child);
@@ -191,15 +192,16 @@ void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
 	 nnode->next_instance != 0)
     nnode = &nodes[nnode->next_instance];
 
-  if (flattened[nnode->id]) 
+  if (flattened[nnode->number]) 
     return;
 
-  flattened[nnode->id] = 1;
+  flattened[nnode->number] = 1;
 
   if (nnode->group_id == group_id) {
     tnode = &(tnodes[thread_index++]);
     tnode->id = nnode->id;
     tnode->depth = depth;
+    //printf("%d %d\n", thread_index, nnode->number);
     if (nnode->first_child) {
 #if 0
       printf("Descending into child\n");
@@ -221,15 +223,23 @@ void flatten_threads(group *tgroup) {
     group_id = tgroup->group_id;
 
   thread_index = 0;
-  bzero(flattened, MAX_ARTICLES * sizeof(int));
+  bzero(flattened, max * sizeof(int));
 
   for (i = 0; i<max; i++) {
+    //printf("numeric nodes %d: %d\n", i, tgroup->numeric_nodes[i]);
     if ((id = tgroup->numeric_nodes[i]) != 0) {
       nnode = &nodes[id];
-      if (nnode->parent == 0) 
+      if (nnode->parent == 0 || nodes[nnode->parent].number == 0) 
 	flatten_thread(nnode, tnodes, group_id, 0);
     }
   }
+
+  tgroup->threads_length = thread_index - 1;
+
+  if (!strcmp("gmane.discuss", get_string(tgroup->group_name)))
+    printf("Total articles %d, thread length %d\n",
+	   tgroup->total_articles, tgroup->threads_length);
+
 }
 
 void enter_node_threadly(group *tgroup, node *tnode) {
@@ -340,6 +350,9 @@ int num_children(node *nnode) {
 
   if (nnode->first_child == 0)
     return 0;
+
+  nnode = &nodes[nnode->first_child];
+
   while (nnode != NULL) {
     children++;
     if (nnode->next_sibling != 0)
@@ -369,15 +382,19 @@ void output_group_threads(FILE *client, const char *group_name,
 			  int page, int page_size, 
 			  int last) {
   group *g = get_group(group_name);
-  int total = g->total_articles, i, j;
+  int total = g->threads_length, i, j;
   node *nnode;
   thread_node *tnode;
-  int start, stop, articles = 0;
+  int start, stop, articles = 0, tstart;
   int children[256];
+  int skip_past = page_size*page;
 
   if (last == 0)
     last = g->max_article;
 
+  printf("Total %d\n", total);
+
+  /* Find the last article on this page. */
   for (stop = total; stop > 0; stop--) {
     tnode = &(g->thread_nodes[stop]);
     nnode = &nodes[tnode->id];
@@ -385,6 +402,14 @@ void output_group_threads(FILE *client, const char *group_name,
       break;
   }
 
+  for ( ; stop > 0 && skip_past > 0; stop--) {
+    tnode = &(g->thread_nodes[stop]);
+    nnode = &nodes[tnode->id];
+    if (nnode->number <= last)
+      skip_past--;
+  }
+
+  /* Find the first article in this page. */
   for (start = stop; start > 0; start--) {
     tnode = &(g->thread_nodes[start]);
     nnode = &nodes[tnode->id];
@@ -394,21 +419,34 @@ void output_group_threads(FILE *client, const char *group_name,
       break;
   }
 
-  fprintf(client, "%d\n", articles);
+  /* Find the start of the thread we might be in the middle of. */
+  for (tstart = start; tstart > 0; tstart--) {
+    tnode = &(g->thread_nodes[tstart]);
+    if (tnode->depth == 0)
+      break;
+  }
+
+  printf("Outputting group thread from %d\n", start);
 
   /* We have now found the start of the first thread to
      be output to the client. */
-  for (i = start ; i <= stop; i++) {
-    tnode = &(g->thread_nodes[i]);
-    nnode = &nodes[tnode->id];
-    children[tnode->depth] = num_children(nnode);
-    if (i >= start) {
-      fprintf(client, "%d\t", tnode->depth);
-      for (j = 0; j<tnode->depth; j++) 
-	fprintf(client, "%d\t", children[j]);
-      fprintf(client, "%d\t%s\t%s\t%s\n", nnode->number, 
-	      get_string(nnode->subject), 
-	      get_string(nnode->author), format_time(nnode->date));
+  if (start != stop) {
+    for (i = tstart; i <= stop; i++) {
+      tnode = &(g->thread_nodes[i]);
+      nnode = &nodes[tnode->id];
+      children[tnode->depth] = num_children(nnode);
+      if (i >= start) {
+	fprintf(client, "%d\t%d\t%s\t%s\t%s\t", 
+		tnode->depth,
+		nnode->number, 
+		get_string(nnode->subject), 
+		get_string(nnode->author), format_time(nnode->date));
+	for (j = 0; j<tnode->depth; j++) 
+	  fprintf(client, "%d\t", children[j]);
+	fprintf(client, "\n");
+      }
+      if (tnode->depth > 0)
+	children[(tnode->depth) - 1]--;
     }
   }
   fprintf(client, ".\n");
@@ -425,13 +463,14 @@ void output_groups(FILE *client, const char *match) {
   int i;
   char *group_name;
 
-  for (i = 1; i<MAX_GROUPS; i++) {
-    g = &groups[i];
+  for (i = 1; i<num_groups; i++) {
+    g = &groups[alphabetic_groups[i]];
     if (g->group_name == 0) 
       break;
-    group_name = get_string(g->group_name);
-    if (strstr(group_name, match)) {
-      output_group_line(client, g);
+    if (g->group_description != 0) {
+      group_name = get_string(g->group_name);
+      if (strstr(group_name, match)) 
+	output_group_line(client, g);
     }
   }
   fprintf(client, ".\n");
@@ -448,13 +487,22 @@ int find_levels (const char *string) {
 
 int levels_equal (const char *name1, const char *name2, int levels) {
   int n = 0;
+
+  if (name1 == NULL || name2 == NULL)
+    return 0;
+
   while (*name1 && *name2 && *name1 == *name2) {
     if (*name1 == '.')
       n++;
     name1++;
     name2++;
   }
-  if (n + 1 == levels)
+
+  /* We count a group name as a level.  (Implicit trailing dot.) */
+  if (*name1 == 0 || *name2 == 0)
+    n++;
+
+  if (n >= levels)
     return 1;
   else
     return 0;
@@ -464,40 +512,66 @@ static char group_buffer[1024];
 char *prefix_group(char *group_name, int levels) {
   char *p = group_buffer;
   while ((*p++ = *group_name++) != 0) {
-    if (*(p-1) == '.' && levels-- == 0)
+    if (*(p-1) == '.' && levels-- == 0) {
+      p--;
       break;
+    }
   }
   *p = 0;
   return group_buffer;
 }
 
+void output_prev(FILE *client, char *prev, int levels,
+		       int ngroups, group *g) {
+  if (ngroups == 1)
+    output_group_line(client, g);
+  else if (find_levels(prev) != levels + 1)
+    fprintf(client, "%d\t%d\t%s\t%s\n",
+	    -1, ngroups, prefix_group(prev, levels), "");
+}
+
 void output_hierarchy(FILE *client, const char *prefix) {
-  group *g;
+  group *g, *prev_group;
   int i;
   char *group_name;
   int levels = find_levels(prefix);
   char *prev = NULL;
+  int ngroups = 0;
+  char *prev_output = NULL;
 
   for (i = 1; i<num_groups; i++) {
     g = &groups[alphabetic_groups[i]];
     group_name = get_string(g->group_name);
-    if (strstr(group_name, prefix) == group_name) {
-      if (find_levels(group_name) == levels + 1) 
+    if (strstr(group_name, prefix) == group_name &&
+	g->group_description != 0) {
+      if (! levels_equal(prev, group_name, levels + 1)) {
+	if (prev && prev_output != prev) {
+	  prev_output = prev;
+	  output_prev(client, prev, levels, ngroups, prev_group);
+	  ngroups = 0;
+	} 
+      } 
+      
+      prev = group_name;
+      prev_group = g;
+
+      if (find_levels(group_name) == levels + 1) {
+	prev_output = group_name;
 	output_group_line(client, g);
-      else if (levels_equal(prev, group_name, levels + 1)) {
-	fprintf(client, "%d\t%d\t%s\t%s\n",
-		-1, -1, prefix_group(group_name, levels), "");
-	prev = group_name;
+      } else {
+	ngroups++;
       }
     }
   }
+  if (prev && prev_output != prev) 
+    output_prev(client, prev, levels, ngroups, prev_group);
   fprintf(client, ".\n");
 }
 
 void init(void) {
   //g_mime_init(GMIME_INIT_FLAG_UTF8);
-  index_dir = "/index/weave";
   g_mime_init(0);
+  index_dir = "/index/weave";
   init_hash();
   init_nodes();
   read_conf_file();
@@ -533,7 +607,7 @@ int group_name_cmp(const void *sr1, const void *sr2) {
 void alphabetize_groups (void) {
   group *g;
 
-  for (num_groups = 0; num_groups<MAX_GROUPS; num_groups++) {
+  for (num_groups = 1; num_groups<MAX_GROUPS; num_groups++) {
      g = &groups[num_groups];
      if (g->group_id == 0)
        break;

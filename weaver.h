@@ -41,8 +41,9 @@ typedef struct {
   unsigned int total_articles;
 
   unsigned int *numeric_nodes;
-  thread_node *thread_nodes;
   unsigned int nodes_length;
+  thread_node *thread_nodes;
+  unsigned int threads_length;
 
   int dirtyp;
 } group;

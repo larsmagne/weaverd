@@ -151,7 +151,7 @@ int thread_file(const char *file_name) {
   node *tnode, *prev_node;
   char group_name[MAX_STRING_SIZE];
   int id, group_id, article;
-  group *fgroup, *g;
+  group *g;
 
   if (path_to_article_spec(file_name, group_name, &article)) {
     g = get_group(group_name);
@@ -172,8 +172,7 @@ int thread_file(const char *file_name) {
     
     /* Look up stuff and create the node. */
 
-    fgroup = get_group(group_name);
-    group_id = fgroup->group_id;
+    group_id = g->group_id;
 
     /* Strip pointy brackets. */
     fix_message_id(pa->message_id);
