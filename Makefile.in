@@ -5,7 +5,7 @@ GMIME_CONFIG = $(X11BASE)/bin/gmime-config
 GMIME_CFLAGS = `$(GMIME_CONFIG) --cflags`
 GMIME_LIBS = `$(GMIME_CONFIG) --libs`
 
-HEADER_FILES=config.h ../mdb/util.h hash.h weaver.h
+HEADER_FILES=config.h ../mdb/util.h hash.h weaver.h input.h
 
 CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) -I$(X11BASE)/include
 LDFLAGS=@LDFLAGS@ $(GMIME_LIBS)

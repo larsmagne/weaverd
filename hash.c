@@ -1,3 +1,5 @@
+#define _LARGEFILE64_SOURCE
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,6 +10,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <time.h>
+#include <unistd.h>
 
 #include "weaver.h"
 #include "config.h"
@@ -188,8 +191,7 @@ void flush_groups(void) {
 
 void populate_group_table_from_file(int fd) {
   loff_t fsize = file_size(fd);
-  loff_t bytes_read = 0;
-  int result, i;
+  int i;
 
   for (i = 0; i<fsize/sizeof(group); i++) {
     read_block(fd, (char*)(&groups[i]), sizeof(group));

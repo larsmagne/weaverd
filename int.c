@@ -12,6 +12,8 @@
 
 #include "weaver.h"
 #include "config.h"
+#include "hash.h"
+#include "input.h"
 #include "../mdb/util.h"
 
 struct option long_options[] = {

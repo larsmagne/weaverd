@@ -40,6 +40,9 @@ typedef struct {
 unsigned int get_parent(const char *parent_message_id);
 void thread(node *node);
 char *index_file_name(char *name);
+unsigned int next_id(void);
+void write_node(node *nnode);
+void init_nodes(void);
 
 extern char *index_dir;
 extern group groups[];

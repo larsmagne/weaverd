@@ -8,9 +8,11 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include "weaver.h"
 #include "config.h"
+#include "../mdb/util.h"
 
 group groups[MAX_GROUPS];
 
@@ -46,7 +48,7 @@ void write_node(node *nnode) {
   printf("Writing node\n");
   lseek64(node_file, (loff_t)(sizeof(node) * nnode->id), SEEK_SET);
   printf("node size: %d\n", sizeof(node));
-  write_from(node_file, nnode, sizeof(node));
+  write_from(node_file, (char*)nnode, sizeof(node));
 
   if (nnode->id > current_node)
     extend_node_storage();

@@ -32,7 +32,6 @@ parsed_article *parse_file(const char *file_name) {
   const char *author, *subject, *message_id, *references;
   time_t date;
   int offset;
-  int num_words = 0;
   int file;
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
