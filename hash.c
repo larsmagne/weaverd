@@ -57,7 +57,7 @@ unsigned int hash(const char *key, unsigned int len,
 
 char *get_string(int offset) {
   // FIXME
-  wash_string(string_storage + offset);
+  // wash_string(string_storage + offset);
   return string_storage + offset;
 }
 
@@ -176,10 +176,10 @@ void smart_populate_string_table_from_file(int fd) {
   read_block(string_storage_file, string_storage, fsize);
   while (offset < fsize) {
     // FIXME; remove.
-    wash_string(string_storage + offset);
-    //offset = initial_enter_string_storage(string_storage + offset);
-    initial_enter_string_storage(string_storage + offset);
-    offset += strlen(string_storage + offset) + 1;
+    //wash_string(string_storage + offset);
+    //initial_enter_string_storage(string_storage + offset);
+    //offset += strlen(string_storage + offset) + 1;
+    offset = initial_enter_string_storage(string_storage + offset);
   }
 }
 
@@ -227,7 +227,8 @@ node *allocate_new_node(const char *message_id, unsigned int group_id,
   return nnode;
 }
 
-node *get_node(const char *message_id, unsigned int group_id) {
+node *get_node_1(const char *message_id, unsigned int group_id,
+		 int get_new) {
   int string_length = strlen(message_id);
   int search = hash(message_id, string_length, node_table_length);
   int offset = 0;
@@ -254,6 +255,7 @@ node *get_node(const char *message_id, unsigned int group_id) {
     return allocate_new_node(message_id, group_id, search);
   else {
     g = &nodes[offset];
+    /* Try to find the parent in the same group. */
     while (1) {
       if (g->group_id == group_id)
 	return g;
@@ -262,8 +264,21 @@ node *get_node(const char *message_id, unsigned int group_id) {
       previous_instance_node = g->id;
       g = &nodes[g->next_instance];
     } 
-    return allocate_new_node(message_id, group_id, search);
+    if (get_new) 
+      return allocate_new_node(message_id, group_id, search);
+    else
+      /* We didn't find any, so we just return the first instance of the
+	 parent. */
+      return &nodes[offset];
   }
+}
+
+node *get_node(const char *message_id, unsigned int group_id) {
+  return get_node_1(message_id, group_id, 1);
+}
+
+node *get_node_any(const char *message_id, unsigned int group_id) {
+  return get_node_1(message_id, group_id, 0);
 }
 
 void hash_node(const char *message_id, unsigned int node_id) {
@@ -433,3 +448,66 @@ void flush_hash(void) {
   flush_groups(); 
 }
 
+
+void newgroup(FILE *output, char *group_name, char **description, int words) {
+  group *g;
+  char *dstring;
+  int i, len = 0;
+
+  if (group_name && words > 0) {
+    g = get_group(group_name);
+
+    if (g != NULL && ! prohibited_group_p(g)) {
+      fprintf(output, "Group %s already exists\n.\n", group_name);
+      return;
+    } 
+
+    for (i = 0; i < words; i++) 
+      len += strlen(description[i]) + 1;
+    
+    dstring = cmalloc(len);
+    
+    for (i = 0; i < words; i++) {
+      if (i > 0)
+	strcat(dstring, " ");
+      strcat(dstring, description[i]);
+    }
+    
+    g->group_description = enter_string_storage(dstring);
+    alphabetize_groups();
+
+    free(dstring);
+    fprintf(output, "Created group %s\n.\n", group_name);
+  } else {
+    fprintf(output, "Not creating group %s\n.\n", group_name);
+  }
+}
+
+int prohibited_group_p(group *g) {
+  return g->group_description == 0 ||
+    strlen(get_string(g->group_description)) == 0;
+}
+
+void rmgroup(FILE *output, char *group_name) {
+  group *g;
+
+  if (group_name != NULL) {
+    g = find_group(group_name);
+
+    if (g == NULL) {
+      fprintf(output, "Group %s doesn't exist\n.\n", group_name);
+      return;
+    } 
+
+    if (prohibited_group_p(g)) {
+      fprintf(output, "Group %s is already removed\n.\n", group_name);
+      return;
+    } 
+
+    g->group_description = enter_string_storage("");
+    g->dirtyp = 1;
+    alphabetize_groups();
+
+    fprintf(output, "Group %s has been removed\n.\n", group_name);
+  }
+}
