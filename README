@@ -16,6 +16,11 @@ After accepting a connection, it accepts the commands listed below.
 Each command is one line.  Each connection may feed weaverd an
 arbitrary number of commands.
 
+The output is one record per line.  After all records have been
+output, a line containing just "." is output.
+
+All elements on each line is separated by TABs.
+
 input FILE-NAME
     Parse FILE-NAME as a news article and thread it.  The name
     has to correspond to the --spool setting, so if --spool is
@@ -30,6 +35,15 @@ group-thread GROUP-NAME FROM TO
     order.
    
     The threads requested are output, one per line.
+
+    The format used is:
+      
+       depth article-number subject author date parent-children...
+
+    If depth is 8, then there will be 8 parent-children entries.  What
+    these say is how many remaining children these parents have when 
+    we reach this article in the thread.  This can be used to display 
+    pleasing threads.
 
 group MATCH
     Output all groups that match MATCH.
