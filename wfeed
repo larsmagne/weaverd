@@ -36,7 +36,7 @@ while (<TAIL>) {
 		close FILE;
 		if (! $spam) {
 		    print "Threadable.\n";
-		    system("echo 'input /mirror$file' | nc plane 8010");
+		    system("echo 'input /mirror$file' | nc localhost 8010");
 		    #sleep(1);
 		}
 	    }
