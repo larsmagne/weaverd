@@ -10,6 +10,8 @@ node *get_node(const char *message_id, unsigned int group_id);
 char *get_string(int offset);
 unsigned int previous_instance_node;
 void flush_strings(void);
+group *find_group(const char *group_name);
+void hash_node(const char *message_id, unsigned int node_id);
 
 extern int next_string;
 
