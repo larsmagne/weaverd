@@ -19,7 +19,6 @@ while (<TAIL>) {
 	}
     }
     if ($found && ! $lasts{$file}) {
-	next if $file =~ /spam/;
 	next if $file =~ /gmane.config/;
 	next unless $file =~ /^.var.spool.news.articles.gmane\/.*$/;
 	$file = "$file";
