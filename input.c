@@ -133,29 +133,29 @@ int thread_file(const char *file_name) {
 
     printf("group id %d\n", group_id);
 
-    if (! (tnode = get_node(pa->message_id, group_id)))
-      tnode = (node*) cmalloc(sizeof(node));
+    tnode = get_node(pa->message_id, group_id);
 
-    printf("%s %s %s %s\n", pa->author, pa->subject, pa->message_id,
-	   pa->parent_message_id);
-    tnode->group_id = group_id;
-    printf("%s %s %s %s\n", pa->author, pa->subject, pa->message_id,
-	   pa->parent_message_id);
-
-    id = next_id();
-    tnode->id = next_id();
+    if (tnode->number != 0) 
+      printf("Skipping %s/%d\n", group_name, article);
+    else {
+      printf("%s %s %s %s\n", pa->author, pa->subject, pa->message_id,
+	     pa->parent_message_id);
+      
+      id = tnode->id;
+      tnode->number = article;
     
-    tnode->parent = get_parent(pa->parent_message_id);
+      tnode->parent = get_parent(pa->parent_message_id);
     
-    /* Set next_instance in previous instances to point to us. */
+      /* Set next_instance in previous instances to point to us. */
     
-    tnode->subject = enter_string_storage(pa->subject);
-    tnode->author = enter_string_storage(pa->author);
-    tnode->date = pa->date;
-
-    thread(tnode);
-    
-    write_node(tnode);
+      tnode->subject = enter_string_storage(pa->subject);
+      tnode->author = enter_string_storage(pa->author);
+      tnode->date = pa->date;
+      
+      thread(tnode);
+      
+      write_node(tnode);
+    }
   } else {
     printf("Can't find an article spec for %s\n", file_name);
   }

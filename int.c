@@ -9,6 +9,7 @@
 #endif
 #include <fcntl.h>
 #include <getopt.h>
+#include <gmime/gmime.h>
 
 #include "weaver.h"
 #include "config.h"
@@ -55,6 +56,8 @@ int main(int argc, char **argv)
 {
   int dirn;
   struct stat stat_buf;
+
+  g_mime_init(GMIME_INIT_FLAG_UTF8);
 
   index_dir = "/index/weave";
 

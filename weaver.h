@@ -11,9 +11,10 @@ typedef struct {
   unsigned int parent;
   unsigned int next_instance;  /* Used for cross-posting. */
 
-  /* These two are offsets into the string storage. */
+  /* These three are offsets into the string storage. */
   unsigned int subject;
   unsigned int author;
+  unsigned int message_id;
   time_t date;
 
   unsigned int first_child;
@@ -46,6 +47,7 @@ void init_nodes(void);
 
 extern char *index_dir;
 extern group groups[];
+extern node *nodes;
 
 #endif
 

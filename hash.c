@@ -30,6 +30,9 @@ static int group_table_length = GROUP_TABLE_LENGTH;
 static int next_group_id = 0;
 static int group_file = 0;
 
+static int *node_table = NULL;
+static int node_table_length = INITIAL_NODE_TABLE_LENGTH;
+
 static int inhibit_file_write = 0;
 
 #define HASH_GRANULARITY 1024
@@ -51,7 +54,7 @@ unsigned int hash(const char *key, unsigned int len, unsigned int table_length)
   return (hash & (table_length - 1));
 } 
 
-char *get_string(offset) {
+char *get_string(int offset) {
   return string_storage + offset;
 }
 
@@ -134,9 +137,65 @@ void init_string_hash (void) {
     populate_string_table_from_file(string_storage_file);
 }
 
-node *get_node(const char *message_id, unsigned int group_id) {
+
+/*** Nodes ***/
+
+node *allocate_new_node(const char *message_id, unsigned int group_id, 
+			int search) {
+  int id = next_id();
+  node *nnode = &nodes[id];
+
+  printf("Getting new node %d\n", id);
+
+  node_table[search] = id;
+
+  if (! inhibit_file_write) {
+    nnode->id = id;
+    nnode->group_id = group_id;
+    nnode->message_id = enter_string_storage(message_id);
+  }
+  return nnode;
 }
 
+node *get_node(const char *message_id, unsigned int group_id) {
+  int string_length = strlen(message_id);
+  int search = hash(message_id, string_length, node_table_length);
+  int offset = 0;
+  node *g;
+
+  printf("Entering node '%s'\n", message_id);
+
+  while (1) {
+    offset = node_table[search];
+    if (! offset)
+      break;
+    else if (offset && ! strcmp(message_id,
+				get_string(nodes[offset].message_id)))
+      break;
+    if (search++ >= node_table_length)
+      search = 0;
+  }
+
+  printf("hei %d %s\n", offset, message_id);
+
+  if (! offset) 
+    return allocate_new_node(message_id, group_id, search);
+  else {
+    g = &nodes[offset];
+    while (1) {
+      if (g->group_id == group_id)
+	return g;
+      if (g->next_instance == 0)
+	break;
+      g = &nodes[g->next_instance];
+    } 
+    return allocate_new_node(message_id, group_id, search);
+  }
+}
+
+void init_node_table(void) {
+  node_table = (int*)cmalloc(node_table_length * sizeof(int));
+}
 
 /*** Groups ***/
 
@@ -195,8 +254,10 @@ void populate_group_table_from_file(int fd) {
 
   for (i = 0; i<fsize/sizeof(group); i++) {
     read_block(fd, (char*)(&groups[i]), sizeof(group));
-    if (groups[i].group_name)
+    if (groups[i].group_name) {
+      
       get_group(get_string(groups[i].group_name));
+    }
   }
 }
 
@@ -207,9 +268,10 @@ void init_group_hash (void) {
 			   O_RDWR|O_CREAT, 0644)) == -1)
     merror("Opening the group file.");
 
+  next_group_id = 1;
+
   if (file_size(group_file) == 0) {
     write_from(group_file, (char*)(&groups[0]), sizeof(group));
-    next_group_id = 1;
   } else 
     populate_group_table_from_file(group_file);
 }
@@ -220,6 +282,7 @@ void init_hash (void) {
   inhibit_file_write = 1;
   init_string_hash();
   init_group_hash();
+  init_node_table();
   inhibit_file_write = 0;
   printf("Initializing hash stuff...done\n");
 }

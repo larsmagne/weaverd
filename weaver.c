@@ -12,11 +12,12 @@
 
 #include "weaver.h"
 #include "config.h"
+#include "hash.h"
 #include "../mdb/util.h"
 
 group groups[MAX_GROUPS];
 
-node *nodes = NULL;
+node *nodes;
 unsigned int nodes_length = 0;
 char *index_dir = NULL;
 
@@ -58,24 +59,36 @@ void write_node(node *nnode) {
 
 void init_nodes(void) {
   loff_t fsize;
+  int i;
+  node *tnode;
 
   if ((node_file = open64(index_file_name(NODE_FILE),
 			  O_RDWR|O_CREAT, 0644)) == -1)
     merror("Opening the node file.");
  
   fsize = file_size(node_file);
-  if (fsize == 0)
+  if (fsize == 0) 
     nodes_length = 1024 * 256;
   else
     nodes_length = fsize * 2;
 
   nodes = (node*) cmalloc(nodes_length * sizeof(node));
 
+  if (fsize == 0) {
+    write_from(node_file, (char*)&nodes[0], sizeof(node));
+  }
+
+  current_node = 1;
+
   read_block(node_file, (char*) nodes, fsize);
-  current_node = fsize / sizeof(node);
+  for (i = 1; i<fsize / sizeof(node); i++) {
+    tnode = &nodes[i];
+    get_node(get_string(tnode->message_id), tnode->group_id);
+  }
 }
 
 unsigned int get_parent(const char *parent_message_id) {
+  return 0;
 }
 
 void thread(node *node) {
