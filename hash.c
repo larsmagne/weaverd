@@ -16,6 +16,7 @@
 #include "config.h"
 #include "../mdb/util.h"
 #include "hash.h"
+#include "input.h"
 
 static char *string_storage = NULL;
 static int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
@@ -55,6 +56,8 @@ unsigned int hash(const char *key, unsigned int len,
 } 
 
 char *get_string(int offset) {
+  // FIXME
+  wash_string(string_storage + offset);
   return string_storage + offset;
 }
 
@@ -259,6 +262,48 @@ node *get_node(const char *message_id, unsigned int group_id) {
   }
 }
 
+void hash_node(const char *message_id, unsigned int node_id) {
+  int string_length = strlen(message_id);
+  int search = hash(message_id, string_length, node_table_length);
+  int offset = 0;
+
+  while (1) {
+    offset = node_table[search];
+    if (! offset)
+      break;
+    else if (offset && ! strcmp(message_id,
+				get_string(nodes[offset].message_id)))
+      break;
+    if (search++ >= node_table_length)
+      search = 0;
+  }
+
+  if (! offset) 
+    node_table[search] = node_id;
+}
+
+node *find_node(const char *message_id) {
+  int string_length = strlen(message_id);
+  int search = hash(message_id, string_length, node_table_length);
+  int offset = 0;
+
+  while (1) {
+    offset = node_table[search];
+    if (! offset)
+      break;
+    else if (offset && ! strcmp(message_id,
+				get_string(nodes[offset].message_id)))
+      break;
+    if (search++ >= node_table_length)
+      search = 0;
+  }
+
+  if (! offset) 
+    return NULL;
+  else
+    return &nodes[offset];
+}
+
 void init_node_table(void) {
   node_table = (int*)cmalloc(node_table_length * sizeof(int));
 #ifdef USAGE
@@ -269,7 +314,7 @@ void init_node_table(void) {
 
 /*** Groups ***/
 
-group *get_group(const char *group_name) {
+group *get_group_1(const char *group_name, int create_new_group) {
   int string_length = strlen(group_name);
   int search = hash(group_name, string_length, group_table_length);
   int offset, group_id;
@@ -291,6 +336,9 @@ group *get_group(const char *group_name) {
   }
 
   if (! offset) {
+    if (! create_new_group)
+      return NULL;
+
     group_id = next_group_id++;
     if (! inhibit_file_write) {
       g = &groups[group_id];
@@ -304,6 +352,14 @@ group *get_group(const char *group_name) {
   } 
 
   return &groups[offset];
+}
+
+group *get_group(const char *group_name) {
+  return get_group_1(group_name, 1);
+}
+
+group *find_group(const char *group_name) {
+  return get_group_1(group_name, 0);
 }
 
 void flush_groups(void) {
