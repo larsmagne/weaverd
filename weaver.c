@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <gmime/gmime.h>
 #include <sys/resource.h>
+#include <time.h>
 
 #include "weaver.h"
 #include "config.h"
@@ -26,7 +27,7 @@ int num_groups = 0;
 
 node *nodes;
 unsigned int nodes_length = 0;
-char *index_dir = NULL;
+char *index_dir = INDEX_DIR;
 
 unsigned int current_node = 0;
 static int node_file = 0;
@@ -57,6 +58,44 @@ unsigned int next_id(void) {
   return current_node;
 }
 
+static time_t month_table[70*12];
+
+void compute_month_table(void) {
+  struct tm tmtime;
+  int year, month, mnum = 0;
+
+  bzero(&tmtime, sizeof(struct tm));
+  tmtime.tm_sec = 1;
+  tmtime.tm_mday = 1;
+
+  for (year = 1971 - 1900; year < 2035 - 1900; year++) {
+    for (month = 0; month < 12; month++) {
+      tmtime.tm_year = year;
+      tmtime.tm_mon = month;
+      month_table[mnum++] = mktime(&tmtime);
+      //printf("%s\n", ctime(&month_table[mnum-1]));
+    }
+  }
+  month_table[0] = 0;
+}
+
+static int last_month_index = 0;
+
+int find_month_number(time_t date) {
+  if (date < 0)
+    date = 0;
+  if (date < month_table[last_month_index])
+    last_month_index = 0;
+  while (date > month_table[last_month_index]) {
+    last_month_index++;
+    if (last_month_index > 12*65) {
+      last_month_index = 0;
+      break;
+    }
+  }
+  return last_month_index;
+}
+
 char *index_file_name(char *name) {
   static char file_name[1024];
   strcpy(file_name, index_dir);
@@ -64,6 +103,21 @@ char *index_file_name(char *name) {
   strcat(file_name, name);
   return file_name;
 }
+
+time_t first_article_date(group *g) {
+  node *nnode;
+  int i, n;
+
+  for (i = 1; i < g->nodes_length; i++) {
+    n = g->numeric_nodes[i];
+    if (n != 0) {
+      nnode = &nodes[n];
+      return nnode->date;
+    }
+  }
+  return 0;
+}
+
 
 void dump_group(char *group_name) {
   group *g = find_group(group_name);
@@ -93,8 +147,6 @@ void store_node(node *nnode) {
 void write_node(node *nnode) {
   if (! inhibit_file_writes) {
     if (lseek64(node_file, (loff_t)(sizeof(node) * nnode->id), SEEK_SET) < 0) {
-      printf("Trying to see to %Ld\n", 
-	     (loff_t)(sizeof(node) * nnode->id));
       merror("Seeking the node file");
     }
     write_from(node_file, (char*)nnode, sizeof(node));
@@ -125,10 +177,8 @@ void flatten_groups(void) {
 
 }
 
-void init_nodes(void) {
+loff_t allocate_nodes(void) {
   loff_t fsize;
-  int i;
-  node *tnode;
 
   if ((node_file = open64(index_file_name(NODE_FILE),
 			  O_RDWR|O_CREAT, 0644)) == -1)
@@ -136,11 +186,18 @@ void init_nodes(void) {
  
   fsize = file_size(node_file);
   if (fsize == 0) 
-    nodes_length = 12000000 * sizeof(node);
+    nodes_length = INITIAL_NODE_LENGTH * sizeof(node);
   else
-    nodes_length = fsize * 1.2;
+    nodes_length = fsize * 1.4;
 
   nodes = (node*) cmalloc(nodes_length);
+
+  return fsize;
+}
+
+void init_nodes(loff_t fsize) {
+  int i;
+  node *tnode;
 
   if (fsize == 0) {
     write_from(node_file, (char*)&nodes[0], sizeof(node));
@@ -153,10 +210,53 @@ void init_nodes(void) {
   for (i = 1; i<fsize / sizeof(node); i++) {
     tnode = &nodes[i];
     hash_node(get_string(tnode->message_id), tnode->id);
-    thread(tnode, 0);
+    if (tnode->group_id > MAX_GROUPS)
+      printf("Ignoring tnode with group_id %x\n", tnode->group_id);
+    else
+      thread(tnode, 0);
   }
   
-  flatten_groups();
+  if (inhibit_thread_flattening == 0)
+    flatten_groups();
+}
+
+unsigned int get_parent_by_subject(const char *subject, 
+				   unsigned int group_id, 
+				   time_t date) {
+  /* Don't search further back than seven days. */
+  time_t cutoff = date - 60*60*24*7;
+  node *nnode, *parent;
+  int i, n;
+  int recursion = 0;
+  group *g = &groups[group_id];
+
+  printf("Searching for subject %s\n", subject);
+
+  for (i = g->nodes_length - 1; i >= 0; i--) {
+    n = g->numeric_nodes[i];
+    if (n != 0) {
+      nnode = &nodes[n];
+      if (nnode->date < cutoff)
+	return 0;
+      if (! strncasecmp(subject, get_string(nnode->subject), 20)) {
+	/* We found a message with a matching Subject header. 
+	   Go up the thread until we find the root or something
+	   that doesn't have a matching Subject. */
+	while (nnode->parent) {
+	  parent = &nodes[nnode->parent];
+	  if (strncasecmp(subject, get_string(parent->subject), 20))
+	    break;
+	  else
+	    nnode = parent;
+	  /* Make sure we don't have infinite recursion. */
+	  if (recursion++ > 2000)
+	    return 0;
+	}
+	return nnode->id;
+      }
+    }
+  }
+  return 0;
 }
 
 unsigned int get_parent(const char *parent_message_id, unsigned int group_id) {
@@ -241,9 +341,9 @@ void flatten_threads(group *tgroup) {
     }
   }
 
-  tgroup->threads_length = thread_index - 1;
+  tgroup->threads_length = thread_index;
 
-  if (!strcmp("gmane.discuss", get_string(tgroup->group_name)))
+  if (!strcmp("gmane.discuss", external_group_name(tgroup)))
     printf("Total articles %d, thread length %d\n",
 	   tgroup->total_articles, tgroup->threads_length);
 
@@ -325,7 +425,7 @@ void thread(node *tnode, int do_thread) {
 }
 
 void output_threads(char *group_name) {
-  group *g = find_group(group_name);
+  group *g = find_group(internal_group_name(group_name));
   int total, i;
   node *nnode;
   thread_node *tnode;
@@ -369,6 +469,34 @@ int num_children(node *nnode) {
 
   while (nnode != NULL) {
     children++;
+    if (nnode->next_sibling != 0)
+      nnode = &nodes[nnode->next_sibling];
+    else
+      nnode = NULL;
+  }
+
+  return children;    
+}
+
+int num_total_children_depth = 0;
+
+int num_total_children(node *nnode, int reset_countp) {
+  int children = 0;
+
+  if (reset_countp)
+    num_total_children_depth = 0;
+
+  if (num_total_children_depth++ > 500)
+    return 0;
+
+  if (nnode->first_child == 0)
+    return 0;
+
+  nnode = &nodes[nnode->first_child];
+
+  while (nnode != NULL) {
+    children++;
+    children += num_total_children(nnode, 0);
     if (nnode->next_sibling != 0)
       nnode = &nodes[nnode->next_sibling];
     else
@@ -438,7 +566,7 @@ int output_one_node(FILE *client, node *nnode, int depth) {
   for (j = 0; j<depth; j++) 
     fprintf(client, "%d\t", output_children[j]);
 
-  fprintf(client, "\t%s", get_string(groups[nnode->group_id].group_name));
+  fprintf(client, "\t%s", external_group_name(&groups[nnode->group_id]));
   
   fprintf(client, "\n");
 
@@ -484,7 +612,7 @@ void output_thread(FILE *client, node *nnode, int depth) {
 }
 
 void output_one_thread(FILE *client, const char *group_name, int article) {
-  group *g = find_group(group_name);
+  group *g = find_group(internal_group_name(group_name));
   node *nnode;
 
   if (g == NULL)
@@ -504,46 +632,177 @@ void output_lookup(FILE *client, const char *message_id) {
   node *nnode = find_node(message_id);
   if (nnode != NULL)
     fprintf(client, "%s\t%d\n",
-	    get_string(groups[nnode->group_id].group_name),
+	    external_group_name(&groups[nnode->group_id]),
 	    nnode->number);
   fprintf(client, ".\n");
 }
 
 void output_root(FILE *client, const char *group_name, int article) {
-  group *g = find_group(group_name);
+  group *g = find_group(internal_group_name(group_name));
   node *nnode;
   int i;
+  int recursion_level = 0;
 
   if (g == NULL)
     return;
 
   if (article <= g->max_article) {
     i = g->numeric_nodes[article];
-    printf("Got node id %d %s\n", i, group_name);
+    //printf("Got node id %d %s\n", i, group_name);
     if (i != 0) {
       nnode = &nodes[i];
+      /*
       printf("In group %d, %s, %s\n", 
 	     nnode->group_id,
-	     get_string(groups[nnode->group_id].group_name),
+	     external_group_name(&groups[nnode->group_id]),
 	     get_string(nnode->subject));
+      */
       while (nnode->parent != 0 &&
 	     nodes[nnode->parent].number != 0) {
 	nnode = &nodes[nnode->parent];
-	printf("Parent message_id '%s'\n", get_string(nnode->message_id));
+	if (recursion_level++ > 2000)
+	  break;
+	//printf("Parent message_id '%s'\n", get_string(nnode->message_id));
       }
 
       fprintf(client, "%s\t%d\n", 
-	      get_string(groups[nnode->group_id].group_name),
+	      external_group_name(&groups[nnode->group_id]),
 	      nnode->number);
     }
   }
   fprintf(client, ".\n");
 }
 
+void output_thread_roots(FILE *client, const char *group_name, 
+			 int page, int page_size, int rootsp) {
+  group *g = find_group(internal_group_name(group_name));
+  int total, i, nthread = 0;
+  node *nnode;
+  thread_node *tnode;
+
+  output_thread_length = 0;
+
+  if (g == NULL || prohibited_group_p(g)) {
+    fprintf(client, ".\n");
+    return;
+  }
+
+  fprintf(client, "#max\t%d\n", total);
+  fprintf(client, "#description\t%s\n", get_string(g->group_description));
+
+  total = g->threads_length;
+  
+  for (i = 0; i < total; i++) {
+    tnode = &(g->thread_nodes[i]);
+    nnode = &nodes[tnode->id];
+    if (tnode->depth == 0 || ! rootsp) {
+      if (nthread > (page + 1) * page_size)
+	break;
+      else if (nthread >= page * page_size) {
+	fprintf(client, "%d\t", num_total_children(nnode, 1));
+	output_one_node(client, nnode, tnode->depth);
+      }
+      nthread++;
+    }
+  }
+
+  fprintf(client, ".\n");
+}
+
+void output_months(FILE *client, const char *group_name) {
+  group *g = find_group(internal_group_name(group_name));
+  node *nnode;
+  int i, n;
+  int months[12*70];
+
+  bzero(months, 12*70 * sizeof(int));
+
+  if (g == NULL || prohibited_group_p(g)) {
+    fprintf(client, ".\n");
+    return;
+  }
+
+  for (i = 0; i < g->nodes_length; i++) {
+    n = g->numeric_nodes[i];
+    if (n != 0) {
+      nnode = &nodes[n];
+      months[find_month_number(nnode->date)]++;
+    }
+  }
+  for (i = 0; i < 12*60; i++) {
+    if (months[i]) 
+      fprintf(client, "%ld\t%d\n", month_table[i], months[i]);
+  }
+  fprintf(client, ".\n");
+}
+
+void output_days(FILE *client, const char *group_name, time_t start) {
+  group *g = find_group(internal_group_name(group_name));
+  node *nnode;
+  int i, n;
+  time_t stop = month_table[find_month_number(start + 1)];
+  int days[31];
+
+  bzero(days, 31 * sizeof(int));
+
+  if (g == NULL || prohibited_group_p(g)) {
+    fprintf(client, ".\n");
+    return;
+  }
+
+  for (i = 0; i < g->nodes_length; i++) {
+    n = g->numeric_nodes[i];
+    if (n != 0) {
+      nnode = &nodes[n];
+      if (nnode->date >= start && nnode->date <= stop) {
+	days[(nnode->date - start) / (24*60*60)]++;
+      }
+    }
+  }
+
+  for (i = 0; i < 31; i++) {
+    if (days[i]) 
+      fprintf(client, "%d\t%d\n", i, days[i]);
+  }
+  fprintf(client, ".\n");
+}
+
+void output_articles_in_period(FILE *client, const char *group_name, 
+			       int start_time, int stop_time, 
+			       int page, int page_size) {
+  group *g = find_group(internal_group_name(group_name));
+  node *nnode;
+  int i, n, narts = 0;
+
+  if (g == NULL || prohibited_group_p(g)) {
+    fprintf(client, ".\n");
+    return;
+  }
+
+  output_thread_length = 0;
+
+  for (i = 0; i < g->nodes_length; i++) {
+    n = g->numeric_nodes[i];
+    if (n != 0) {
+      nnode = &nodes[n];
+      if (nnode->date >= start_time && nnode->date <= stop_time) {
+	if ((narts >= page * page_size) && (narts < (page + 1) * page_size)) {
+	  fprintf(client, "%d\t", num_total_children(nnode, 1));
+	  output_one_node(client, nnode, 0);
+	}
+	narts++;
+      }
+    }
+  }
+
+  fprintf(client, "#max\t%d\n", narts);
+  fprintf(client, ".\n");
+}
+
 void output_group_threads(FILE *client, const char *group_name, 
 			  int page, int page_size, 
 			  int last) {
-  group *g = find_group(group_name);
+  group *g = find_group(internal_group_name(group_name));
   int total, i, j;
   node *nnode;
   thread_node *tnode;
@@ -561,6 +820,10 @@ void output_group_threads(FILE *client, const char *group_name,
     last = g->max_article;
 
   fprintf(client, "#max\t%d\n", total);
+  /*
+    FIXME:
+    fprintf(client, "#description\t%s\n", get_string(g->description));
+  */
 
   /* Find the first article in this page. */
   for (start = 0; start < total; start++) {
@@ -599,7 +862,7 @@ void output_group_threads(FILE *client, const char *group_name,
       tnode = &(g->thread_nodes[i]);
       nnode = &nodes[tnode->id];
       children[tnode->depth] = num_children(nnode);
-      if (i >= start && nnode->number <= last) {
+      if (i >= start && nnode->number <= last && nnode->number > 0) {
 	fprintf(client, "%d\t%d\t%s\t%s\t%s\t", 
 		tnode->depth,
 		nnode->number, 
@@ -619,7 +882,7 @@ void output_group_threads(FILE *client, const char *group_name,
 void output_group_line(FILE *client, group *g) {
   fprintf(client, "%d\t%d\t%s\t%s\n",
 	  g->max_article, g->total_articles, 
-	  get_string(g->group_name), get_string(g->group_description));
+	  external_group_name(g), get_string(g->group_description));
 }
 
 void output_groups(FILE *client, const char *match) {
@@ -630,7 +893,7 @@ void output_groups(FILE *client, const char *match) {
   for (i = 1; i<num_groups; i++) {
     g = &groups[alphabetic_groups[i]];
     if (g->group_name != 0) {
-      group_name = get_string(g->group_name);
+      group_name = external_group_name(g);
       if (strstr(group_name, match)) 
 	output_group_line(client, g);
     }
@@ -703,7 +966,7 @@ void output_hierarchy(FILE *client, const char *prefix) {
 
   for (i = 1; i<num_groups; i++) {
     g = &groups[alphabetic_groups[i]];
-    group_name = get_string(g->group_name);
+    group_name = external_group_name(g);
     if (strstr(group_name, prefix) == group_name) {
       if (! levels_equal(prev, group_name, levels + 1)) {
 	if (prev && prev_output != prev) {
@@ -730,11 +993,14 @@ void output_hierarchy(FILE *client, const char *prefix) {
 }
 
 void init(void) {
+  loff_t fsize;
+
   g_mime_init(GMIME_INIT_FLAG_UTF8);
+  compute_month_table();
   //g_mime_init(0);
-  index_dir = "/index/weave";
+  fsize = allocate_nodes();
   init_hash();
-  init_nodes();
+  init_nodes(fsize);
   read_conf_file();
 }
 
@@ -764,26 +1030,29 @@ void clean_up(void) {
 }
 
 int group_name_cmp(const void *sr1, const void *sr2) {
-  return strcmp(get_string(groups[*(int*)sr1].group_name),
-		get_string(groups[*(int*)sr2].group_name));
+  return strcmp(external_group_name(&groups[*(int*)sr1]),
+		external_group_name(&groups[*(int*)sr2]));
 }
 
 void alphabetize_groups (void) {
   group *g;
+  int i;
 
-  for (num_groups = 1; num_groups<MAX_GROUPS; num_groups++) {
-     g = &groups[num_groups];
+  num_groups = 1;
+
+  for (i = 1; i<MAX_GROUPS; i++) {
+     g = &groups[i];
      if (g->group_id == 0)
        break;
      if (! prohibited_group_p(g))
-       alphabetic_groups[num_groups] = g->group_id;
+       alphabetic_groups[num_groups++] = g->group_id;
   }
 
   qsort(alphabetic_groups, num_groups, sizeof(int), group_name_cmp);
 }
 
 void cancel_article(FILE *client, const char *group_name, int article) {
-  group *g = find_group(group_name);
+  group *g = find_group(internal_group_name(group_name));
   node *nnode;
   int i;
 
@@ -811,7 +1080,7 @@ void cancel_message_id(FILE *client, const char *message_id) {
     while (nnode != NULL) {
       g = &groups[nnode->group_id];
       fprintf(client, "Cancelling %s:%d\n", 
-	      get_string(g->group_name),
+	      external_group_name(g),
 	      nnode->number);
       nnode->author = 0;
       write_node(nnode);
@@ -824,3 +1093,19 @@ void cancel_message_id(FILE *client, const char *message_id) {
     fprintf(client, ".\n");
   }
 }
+
+void rename_group(FILE *client, const char *from_group_name,
+		  const char *to_group_name) {
+  group *g = find_group(from_group_name);
+
+  if (g == NULL)
+    fprintf(client, "%s does not exist.\n.\n", from_group_name);
+  else {
+    fprintf(client, "Renaming %s to %s.\n.\n", from_group_name,
+	    to_group_name);
+    g->external_group_name = enter_string_storage(to_group_name);
+    g->dirtyp = 1;
+    enter_external_to_internal_group_name_map(to_group_name, from_group_name);
+  }
+}
+
