@@ -175,7 +175,11 @@ void smart_populate_string_table_from_file(int fd) {
 
   read_block(string_storage_file, string_storage, fsize);
   while (offset < fsize) {
-    offset = initial_enter_string_storage(string_storage + offset);
+    // FIXME; remove.
+    wash_string(string_storage + offset);
+    //offset = initial_enter_string_storage(string_storage + offset);
+    initial_enter_string_storage(string_storage + offset);
+    offset += strlen(string_storage + offset) + 1;
   }
 }
 
