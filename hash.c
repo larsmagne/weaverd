@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <time.h>
 #include <unistd.h>
+#include <gmime/gmime.h>
 
 #include "weaver.h"
 #include "config.h"
@@ -18,8 +19,8 @@
 #include "hash.h"
 #include "input.h"
 
-static char *string_storage = NULL;
-static int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
+char *string_storage = NULL;
+int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
 int next_string = 0;
 static int string_storage_file = 0;
 
@@ -36,6 +37,8 @@ static int node_table_length = INITIAL_NODE_TABLE_LENGTH;
 unsigned int previous_instance_node = 0;
 
 static int inhibit_file_write = 0;
+
+static GHashTable *external_to_internal_group_name_table = NULL;
 
 #define HASH_GRANULARITY 1024
 
@@ -174,13 +177,8 @@ void smart_populate_string_table_from_file(int fd) {
   int offset = 0;
 
   read_block(string_storage_file, string_storage, fsize);
-  while (offset < fsize) {
-    // FIXME; remove.
-    //wash_string(string_storage + offset);
-    //initial_enter_string_storage(string_storage + offset);
-    //offset += strlen(string_storage + offset) + 1;
+  while (offset < fsize) 
     offset = initial_enter_string_storage(string_storage + offset);
-  }
 }
 
 void init_string_hash (void) {
@@ -195,8 +193,11 @@ void init_string_hash (void) {
 #endif
 
   if ((string_storage_file = open64(index_file_name(STRING_STORAGE_FILE),
-			      O_RDWR|O_CREAT, 0644)) == -1)
+				    O_RDWR|O_CREAT, 0644)) == -1) {
+    fprintf(stderr, "Couldn't open %s\n", 
+	    index_file_name(STRING_STORAGE_FILE));
     merror("Opening the string storage file.");
+  }
 
   if (file_size(string_storage_file) == 0) {
     write_from(string_storage_file, "@@@", 4);
@@ -259,9 +260,9 @@ node *get_node_1(const char *message_id, unsigned int group_id,
     while (1) {
       if (g->group_id == group_id)
 	return g;
+      previous_instance_node = g->id;
       if (g->next_instance == 0)
 	break;
-      previous_instance_node = g->id;
       g = &nodes[g->next_instance];
     } 
     if (get_new) 
@@ -333,6 +334,23 @@ void init_node_table(void) {
 
 /*** Groups ***/
 
+char *external_group_name(group *g) {
+  if (g->external_group_name != 0)
+    return get_string(g->external_group_name);
+  else
+    return get_string(g->group_name);
+}
+
+char *internal_group_name(const char *external) {
+  char *internal;
+  if ((internal = 
+       (char*)g_hash_table_lookup(external_to_internal_group_name_table, 
+				  (gpointer)external)) != NULL)
+    return internal;
+  else
+    return (char *)external;
+}
+
 group *get_group_1(const char *group_name, int create_new_group) {
   int string_length = strlen(group_name);
   int search = hash(group_name, string_length, group_table_length);
@@ -347,7 +365,7 @@ group *get_group_1(const char *group_name, int create_new_group) {
     offset = group_table[search];
     if (! offset)
       break;
-    else if (offset && ! strcmp(group_name,
+    else if (offset && ! strcmp(group_name, 
 				get_string(groups[offset].group_name)))
       break;
     if (search++ >= group_table_length)
@@ -439,9 +457,11 @@ void init_group_hash (void) {
 void init_hash (void) {
   inhibit_file_write = 1;
   init_string_hash();
-  init_group_hash();
   init_node_table();
+  init_group_hash();
   inhibit_file_write = 0;
+  external_to_internal_group_name_table =
+    g_hash_table_new(g_str_hash, g_str_equal);
 }
 
 void flush_hash(void) {
@@ -511,3 +531,17 @@ void rmgroup(FILE *output, char *group_name) {
     fprintf(output, "Group %s has been removed\n.\n", group_name);
   }
 }
+
+void clean_up_hash(void) {
+  free(string_storage);
+  free(node_table);
+  free(group_table);
+}
+
+void enter_external_to_internal_group_name_map(const char *external, 
+					       const char *internal) {
+  g_hash_table_insert(external_to_internal_group_name_table,
+		      (gpointer)strdup(external),
+		      (gpointer)strdup(internal));
+}
+
