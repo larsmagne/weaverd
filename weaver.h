@@ -36,6 +36,8 @@ typedef struct {
   unsigned int group_name;
   unsigned int group_description;
   unsigned int group_id;
+  unsigned int relay_status; 
+  unsigned int external_group_name;
   
   unsigned int nodes_on_disk;
   unsigned int next_node;
@@ -57,7 +59,7 @@ void thread(node *node, int do_thread);
 char *index_file_name(char *name);
 unsigned int next_id(void);
 void write_node(node *nnode);
-void init_nodes(void);
+void init_nodes(loff_t fsize);
 void flatten_threads(group *tgroup);
 void output_threads(char *group_name);
 void store_node(node *nnode);
@@ -79,6 +81,16 @@ node *find_node(const char *message_id);
 void clean_up(void);
 void cancel_article(FILE *client, const char *group, int article);
 void cancel_message_id(FILE *client, const char *message_id);
+void output_thread_roots(FILE *client, const char *group_name, 
+			 int page, int page_size, int rootsp);
+void output_articles_in_period(FILE *client, const char *group_name, 
+			       int start_time, int stop_time, 
+			       int page, int page_size);
+void output_months(FILE *client, const char *group_name);
+void output_days(FILE *client, const char *group_name, time_t start);
+unsigned int get_parent_by_subject(const char *subject, 
+				   unsigned int group_id, 
+				   time_t date);
 
 extern char *index_dir;
 extern group groups[];
@@ -87,6 +99,8 @@ extern int inhibit_thread_flattening;
 extern int inhibit_file_writes;
 extern unsigned int mem;
 extern unsigned int current_node;
+extern int num_groups;
+extern unsigned int nodes_length;
 
 #endif
 
