@@ -1,3 +1,7 @@
+weaverd is written by and is copyright (c) 2003 Lars Magne
+Ingebrigtsen <larsi@gnus.org>.  It's released under the GNU General
+Public License, a copy of which is included in this package.
+
 The Weaver Daemon has two executables: int, which is used for
 standalone threading, and is basically a debugging tool, and weaverd,
 which is the actual program to use.
