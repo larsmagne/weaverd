@@ -89,7 +89,7 @@ unsigned int enter_string_storage(const char *string) {
   }
 
   if (! offset) {
-    if (next_string + string_length > string_storage_length)
+    if (next_string + string_length >= string_storage_length)
       extend_string_storage();
     strcpy((string_storage + next_string), string);
     if (! inhibit_file_write)

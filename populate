@@ -20,8 +20,9 @@ foreach $file (files_in_dir($dir)) {
 	    open(WEAVERD, "| nc localhost 8010") || die;
 	    print WEAVERD "input $dir/$file\n";
 	    close(WEAVERD);
+	} else {
+	    print "$dir/$file\n";
 	}
-	print "$dir/$file\n";
     }
 }
 

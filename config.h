@@ -10,11 +10,12 @@
 #define STRING_STORAGE_FILE "strings.db"
 #define MAX_STRING_SIZE 10240
 #define MAX_NODES 20000000
+#define NEWS_SPOOL "/mirror/var/spool/news/articles/"
 
 #define INITIAL_STRING_STORAGE_LENGTH 1024
-#define STRING_STORAGE_TABLE_LENGTH (1024 * 256)
+#define STRING_STORAGE_TABLE_LENGTH (1024 * 1024 * 32)
 #define GROUP_TABLE_LENGTH MAX_GROUPS
-#define INITIAL_NODE_TABLE_LENGTH (1024 * 256)
+#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 32)
 
 /* If you have a Linux with O_STREAMING, use the following define. */
 #define O_STREAMING    04000000

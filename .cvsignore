@@ -6,3 +6,4 @@ configure
 .nfs*
 config.cache
 Makefile
+weaverd

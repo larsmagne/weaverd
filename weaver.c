@@ -30,8 +30,22 @@ static int node_file = 0;
 
 static int flattened[MAX_ARTICLES];
 
+void extend_node_storage(void) {
+  int new_length = nodes_length * 2;
+  node *new_nodes = (node*) cmalloc(new_length * sizeof(node));
+  memcpy(new_nodes, nodes, nodes_length * sizeof(node));
+  free(nodes);
+  nodes = new_nodes;
+  nodes_length = new_length;
+}
+
 unsigned int next_id(void) {
-  return current_node++;
+  current_node++;
+
+  if (current_node >= nodes_length) 
+    extend_node_storage();
+
+  return current_node;
 }
 
 char *index_file_name(char *name) {
@@ -42,23 +56,17 @@ char *index_file_name(char *name) {
   return file_name;
 }
 
-void extend_node_storage(void) {
-  int new_length = nodes_length * 0.5;
-  node *new_nodes = (node*) cmalloc(new_length * sizeof(node));
-  memcpy(new_nodes, nodes, nodes_length * sizeof(node));
-  free(nodes);
-  nodes = new_nodes;
-  nodes_length = new_length;
-}
-
 void store_node(node *nnode) {
-  if (nnode->id > current_node)
-    extend_node_storage();
   memcpy(&nodes[nnode->id], nnode, sizeof(node));
 }
 
 void write_node(node *nnode) {
-  lseek64(node_file, (loff_t)(sizeof(node) * nnode->id), SEEK_SET);
+  if (lseek64(node_file, (loff_t)(sizeof(node) * nnode->id), SEEK_SET) < 0) {
+    printf("Trying to see to %Ld\n", 
+	   (loff_t)(sizeof(node) * nnode->id));
+    perror("Seeking the node file");
+    nnode->id = 3 / 0;
+  }
   write_from(node_file, (char*)nnode, sizeof(node));
 }
 
@@ -88,7 +96,7 @@ void init_nodes(void) {
  
   fsize = file_size(node_file);
   if (fsize == 0) 
-    nodes_length = 1024 * 256;
+    nodes_length = 1024 * 16;
   else
     nodes_length = fsize * 2;
 
@@ -222,11 +230,12 @@ void extend_group_node_tables(group *tgroup, unsigned int min) {
   unsigned int length = tgroup->nodes_length, new_length = 0;
   unsigned int area, new_area;
 
+  new_length = length;
   while (new_length < min) {
-    if (length == 0) 
+    if (new_length == 0) 
       new_length = 64;
     else
-      new_length = length * 2;
+      new_length = new_length * 2;
   }
 
   area = length * sizeof(int);

@@ -9,6 +9,12 @@
 #include <errno.h>
 #include <time.h>
 #include <gmime/gmime.h>
+#include <pwd.h>
+#include <sys/types.h>
+
+
+
+
 
 #include "weaver.h"
 #include "../mdb/util.h"
@@ -35,8 +41,6 @@ parsed_article *parse_file(const char *file_name) {
   int file;
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
-
-  printf("%s\n", file_name);
 
   if ((file = open(file_name, O_RDONLY|O_STREAMING)) == -1) {
     perror("tokenizer");
@@ -163,4 +167,18 @@ int thread_file(const char *file_name) {
     printf("Can't find an article spec for %s\n", file_name);
   }
   return 0;
+}
+
+void lock_and_uid(char *user) {
+  struct passwd *pw;
+
+  pw = getpwnam(user);
+  
+  if (mlockall(MCL_FUTURE) == -1) {
+    perror("we-index");
+    exit(1);
+  }
+
+  setuid(pw->pw_uid);
+  setgid(pw->pw_gid);
 }

@@ -85,7 +85,10 @@ int main(int argc, char **argv) {
   int dirn, i;
   char *command, *group_name;
   int from, to;
-  int message;
+  int message = 0;
+  time_t start_time;
+  int commands = 0, last_total_commands = 0;
+  int elapsed;
 
   dirn = parse_args(argc, argv);
 
@@ -125,14 +128,14 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  time(&start_time);
+
   printf("Accepting...\n");
 
   while (TRUE) {
     nitems = 0;
     wsd = accept(server_socket, (struct sockaddr*)&caddr, &addlen);
     peerlen = sizeof(struct sockaddr);
-
-    time(&now);
 
     i = 0;
     while (read(wsd, buffer+i, 1) == 1 &&
@@ -145,7 +148,7 @@ int main(int argc, char **argv) {
     if (*buffer == 0) 
       goto out;
     
-    printf("Got %s", buffer);
+    //printf("Got %s", buffer);
 
     s = strtok(buffer, " \n");
 
@@ -176,6 +179,19 @@ int main(int argc, char **argv) {
 	inhibit_thread_flattening = 0;
 	flatten_groups();
       } 
+
+      if (!(commands++ % 100)) {
+	time(&now);
+	elapsed = now-start_time;
+	printf("    %d commands (%d/s last %d seconds)\n",
+	       commands - 1, 
+	       (elapsed?
+		(int)((commands-last_total_commands) / elapsed):
+		0),
+	       (int)elapsed);
+	last_total_commands = commands;
+      }
+
     }
 
   out:
