@@ -2,6 +2,10 @@
 #define WEAVER_H
 
 #define MAX_SEARCH_ITEMS 1024
+#define MAX_THREAD_LENGTH 10000
+
+/* This constant can't be changed without altering the structures. */
+#define MAX_THREAD_DEPTH 256
 
 typedef unsigned int node_id;
 
@@ -69,6 +73,9 @@ void flush(void);
 void output_one_thread(FILE *client, const char *group_name, int article);
 void alphabetize_groups(void);
 void output_hierarchy(FILE *client, const char *prefix);
+void output_lookup(FILE *client, const char *message_id);
+void output_root(FILE *client, const char *group_name, int article);
+node *find_node(const char *message_id);
 
 extern char *index_dir;
 extern group groups[];
