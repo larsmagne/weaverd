@@ -219,13 +219,14 @@ void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
 void flatten_threads(group *tgroup) {
   thread_node *tnodes = tgroup->thread_nodes;
   node *nnode;
-  unsigned int max = tgroup->max_article, i, id, 
+  unsigned int max = tgroup->max_article, id, 
     group_id = tgroup->group_id;
+  int i;
 
   thread_index = 0;
   bzero(flattened, max * sizeof(int));
 
-  for (i = 0; i<max; i++) {
+  for (i = max - 1; i>=0; i--) {
     //printf("numeric nodes %d: %d\n", i, tgroup->numeric_nodes[i]);
     if ((id = tgroup->numeric_nodes[i]) != 0) {
       nnode = &nodes[id];
@@ -392,26 +393,20 @@ void output_group_threads(FILE *client, const char *group_name,
   if (last == 0)
     last = g->max_article;
 
-  printf("Total %d\n", total);
-
-  /* Find the last article on this page. */
-  for (stop = total; stop > 0; stop--) {
-    tnode = &(g->thread_nodes[stop]);
+  /* Find the first article in this page. */
+  for (start = 0; start < total; start++) {
+    tnode = &(g->thread_nodes[start]);
     nnode = &nodes[tnode->id];
     if (nnode->number <= last)
+      articles++;
+    if (articles >= (page_size*page))
       break;
   }
 
-  for ( ; stop > 0 && skip_past > 0; stop--) {
+  /* Find the last article on this page. */
+  articles = 0;
+  for (stop = start; stop < total; stop++) {
     tnode = &(g->thread_nodes[stop]);
-    nnode = &nodes[tnode->id];
-    if (nnode->number <= last)
-      skip_past--;
-  }
-
-  /* Find the first article in this page. */
-  for (start = stop; start > 0; start--) {
-    tnode = &(g->thread_nodes[start]);
     nnode = &nodes[tnode->id];
     if (nnode->number <= last)
       articles++;
