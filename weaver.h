@@ -76,6 +76,9 @@ void output_hierarchy(FILE *client, const char *prefix);
 void output_lookup(FILE *client, const char *message_id);
 void output_root(FILE *client, const char *group_name, int article);
 node *find_node(const char *message_id);
+void clean_up(void);
+void cancel_article(FILE *client, const char *group, int article);
+void cancel_message_id(FILE *client, const char *message_id);
 
 extern char *index_dir;
 extern group groups[];
