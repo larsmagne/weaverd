@@ -19,8 +19,15 @@ weaver.o: weaver.c $(HEADER_FILES)
 
 input.o: input.c $(HEADER_FILES)
 
-weaverd: hash.o weaver.o input.o
-	$(CC) $(CPPFLAGS) -o weaverd $(LDFLAGS) hash.o weaver.o input.o
+int.o: int.c $(HEADER_FILES)
+
+daemon.o: daemon.c $(HEADER_FILES)
+
+weaverd: hash.o weaver.o input.o ../mdb/util.o daemon.o
+	$(CC) $(CPPFLAGS) -o weaverd $(LDFLAGS) hash.o weaver.o input.o ../mdb/util.o daemon.o
+
+int: hash.o weaver.o input.o ../mdb/util.o daemon.o int.o
+	$(CC) $(CPPFLAGS) -o int $(LDFLAGS) hash.o weaver.o input.o ../mdb/util.o int.o
 
 clean:
 	$(RM) indexer *.o

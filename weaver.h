@@ -1,9 +1,12 @@
 #ifndef WEAVER_H
 #define WEAVER_H
 
+#define MAX_SEARCH_ITEMS 1024
+
 typedef struct {
   unsigned int group_id;
-  unsigned int id;
+  unsigned int number;         /* Article number in group */
+  unsigned int id;             /* Unique article id */
 
   unsigned int parent;
   unsigned int next_instance;  /* Used for cross-posting. */
@@ -18,8 +21,8 @@ typedef struct {
 } node;
 
 typedef struct {
-  char *group_name;
-  char *group_description;
+  unsigned int group_name;
+  unsigned int group_description;
   unsigned int group_id;
   
   unsigned int nodes_on_disk;
@@ -31,6 +34,15 @@ typedef struct {
 
   unsigned int **numeric_nodes;
   unsigned int **thread_nodes;
+  int dirtyp;
 } group;
 
+unsigned int get_parent(const char *parent_message_id);
+void thread(node *node);
+char *index_file_name(char *name);
+
+extern char *index_dir;
+extern group groups[];
+
 #endif
+
