@@ -27,6 +27,16 @@ typedef struct {
   int ignorep;
 } parsed_article;
 
+void wash_string(char *string) {
+  char c;
+
+  while ((c = *string) != 0) {
+    if (c == '\t' || c == '\n')
+      *string = ' ';
+    string++;
+  }
+}
+
 static parsed_article pa;
 
 parsed_article *parse_file(const char *file_name) {
@@ -40,7 +50,7 @@ parsed_article *parse_file(const char *file_name) {
   InternetAddress *iaddr;
   InternetAddressList *iaddr_list;
   int washed_subject = 0;
-  char *address;
+  char *address, *at;
 
   if ((file = open(file_name, O_RDONLY|O_STREAMING)) == -1) {
     printf("Can't open %s\n", file_name);
@@ -70,6 +80,8 @@ parsed_article *parse_file(const char *file_name) {
 	else {
 	  address = internet_address_to_string(iaddr, FALSE);
 	  strncpy(pa.author, address, MAX_STRING_SIZE-1);
+	  if ((at = strchr(pa.author, '@')) != NULL) 
+	    *at = 0;
 	  free(address);
 	}
 	internet_address_list_destroy(iaddr_list);
@@ -99,6 +111,8 @@ parsed_article *parse_file(const char *file_name) {
 	pa.ignorep = 0;
 
       strncpy(pa.subject, subject, MAX_STRING_SIZE-1);
+      if (strlen(pa.subject) > 70) 
+	*(pa.subject+70) = 0;
 
       if (original_message_id != NULL &&
 	  strstr(message_id, "gmane.org"))
@@ -110,6 +124,9 @@ parsed_article *parse_file(const char *file_name) {
 	*(pa.parent_message_id) = 0;
       else
 	strncpy(pa.parent_message_id, references, MAX_STRING_SIZE-1);
+
+      wash_string(pa.subject);
+      wash_string(pa.author);
 
       pa.date = date;
       g_mime_object_unref(GMIME_OBJECT(msg));
@@ -159,6 +176,9 @@ int thread_file(const char *file_name) {
       return 0;
 
     pa = parse_file(file_name);
+
+    if (pa == NULL)
+      return 0;
 
     if (pa->ignorep == 1)
       return 0;
