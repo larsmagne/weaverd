@@ -7,7 +7,7 @@ GMIME_LIBS = `$(GMIME_CONFIG) --libs`
 
 HEADER_FILES=config.h ../mdb/util.h hash.h weaver.h input.h
 
-CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) -I$(X11BASE)/include -g
+CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) -I$(X11BASE)/include -g -O3
 LDFLAGS=@LDFLAGS@ $(GMIME_LIBS)
 CC = @CC@ $(CPPFLAGS)
 
