@@ -248,7 +248,7 @@ void flatten_threads(group *tgroup) {
   int i;
 
   thread_index = 0;
-  bzero(flattened, max * sizeof(int));
+  bzero(flattened, (max + 1) * sizeof(int));
 
   for (i = max; i>0; i--) {
     //printf("numeric nodes %d: %d\n", i, tgroup->numeric_nodes[i]);
