@@ -181,6 +181,9 @@ int main(int argc, char **argv) {
       } else if (!strcmp(command, "thread") && nitems == 3) {
 	output_one_thread(client, expression[1], atoi(expression[2]));
 	message = 0;
+      } else if (!strcmp(command, "root") && nitems == 3) {
+	output_root(client, expression[1], atoi(expression[2]));
+	message = 0;
       } else if (!strcmp(command, "groups") && nitems == 2) {
 	match = expression[1];
 	if (strlen(match) == 0)
@@ -189,8 +192,13 @@ int main(int argc, char **argv) {
       } else if (!strcmp(command, "hierarchy") && nitems == 2) {
 	match = expression[1];
 	output_hierarchy(client, match);
+      } else if (!strcmp(command, "lookup") && nitems == 2) {
+	output_lookup(client, expression[1]);
       } else if (!strcmp(command, "flatten")) {
 	inhibit_thread_flattening = 0;
+	flatten_groups();
+      } else if (!strcmp(command, "quit")) {
+	closedown(0);
 	flatten_groups();
       } 
 
@@ -226,7 +234,7 @@ void closedown(int i) {
 
  if (server_socket)
    close(server_socket);
- flush_hash();
+ flush();
  printf("Closed down at %s", ctime(&now));
  exit(0);
 }
