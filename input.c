@@ -63,7 +63,7 @@ parsed_article *parse_file(const char *file_name) {
   g_mime_stream_unref(stream);
 
   if (msg != 0) {
-    author = g_mime_message_get_sender(msg);
+    author = g_mime_message_get_header(msg, "From");
     subject = g_mime_message_get_subject(msg);
     message_id = g_mime_message_get_message_id(msg);
     references = g_mime_message_get_header(msg, "references");
@@ -75,13 +75,25 @@ parsed_article *parse_file(const char *file_name) {
       /* Get the address from the From header. */
       if ((iaddr_list = internet_address_parse_string(author)) != NULL) {
 	iaddr = iaddr_list->address;
-	if (iaddr->name != NULL)
+	if (iaddr->name != NULL) {
 	  strncpy(pa.author, iaddr->name, MAX_STRING_SIZE-1);
-	else {
+
+	  /* There's a bug in gmimelib that may leave a closing paren in
+	     the name field. */
+	  if (strrchr(pa.author, ')') == pa.author + strlen(pa.author) - 1) 
+	    *strrchr(pa.author, ')') = 0;
+	} else {
 	  address = internet_address_to_string(iaddr, FALSE);
 	  strncpy(pa.author, address, MAX_STRING_SIZE-1);
-	  if ((at = strchr(pa.author, '@')) != NULL) 
-	    *at = 0;
+	  if (strstr(pa.author, "public.gmane.org") != NULL) {
+	    if ((at = strchr(pa.author, '-')) != NULL) 
+	      *at = 0;
+	    else
+	      *pa.author = 0;
+	  } else {
+	    if ((at = strchr(pa.author, '@')) != NULL) 
+	      *at = 0;
+	  }
 	  free(address);
 	}
 	internet_address_list_destroy(iaddr_list);
@@ -115,6 +127,7 @@ parsed_article *parse_file(const char *file_name) {
 	*(pa.subject+70) = 0;
 
       if (original_message_id != NULL &&
+	  strlen(original_message_id) > 0 &&
 	  strstr(message_id, "gmane.org"))
 	strncpy(pa.message_id, original_message_id, MAX_STRING_SIZE-1);
       else
@@ -131,6 +144,7 @@ parsed_article *parse_file(const char *file_name) {
       pa.date = date;
       g_mime_object_unref(GMIME_OBJECT(msg));
     }
+
   }
   close(file);
   return &pa;
@@ -163,25 +177,72 @@ void fix_parent_message_id(char *ids) {
   *q = 0;
 }
 
-int thread_file(const char *file_name) {
+/* Convert a file name into a group/article spec. */
+int path_to_article_wspec(const char *file_name, char *group, int *article) {
+  char *s = news_spool;
+  char *last_slash = NULL;
+  char c;
+  int art = 0;
+
+  while (*s && *file_name && *s++ == *file_name++)
+    ;
+
+  if (*s || ! *file_name)
+    return 0;
+
+  /* It's common to forget to end the spool dir variable with a
+     trailing slash, so we check for that here, and just ignore a
+     leading slash in a group name. */
+  if (*file_name == '/')
+    file_name++;
+
+  while ((c = *file_name++) != 0) {
+    if (c == '/') {
+      c = '.';
+      last_slash = group;
+    }
+
+    *group++ = c;
+  }
+
+  *group++ = 0;
+
+  if (! last_slash)
+    return 0;
+
+  *last_slash = 0;
+
+  s = last_slash + 1;
+  while ((c = *s++) != 0) {
+    if ((c < '0') || (c > '9'))
+      return 0;
+    art = art * 10 + c - '0';
+  }
+
+  *article = art;
+
+  return 1;
+}
+
+void thread_file(const char *file_name) {
   parsed_article *pa;
   node *tnode, *prev_node;
   char group_name[MAX_STRING_SIZE];
-  int id, group_id, article;
+  int id, group_id, article, prev_instance;
   group *g;
 
-  if (path_to_article_spec(file_name, group_name, &article)) {
+  if (path_to_article_wspec(file_name, group_name, &article)) {
     g = get_group(group_name);
-    if (strlen(get_string(g->group_description)) == 0)
-      return 0;
+    if (prohibited_group_p(g)) 
+      return;
 
     pa = parse_file(file_name);
 
     if (pa == NULL)
-      return 0;
+      return;
 
     if (pa->ignorep == 1)
-      return 0;
+      return;
 
 #ifdef DEBUG
     printf("%s %s %s %s\n", pa->author, pa->subject, pa->message_id,
@@ -205,6 +266,8 @@ int thread_file(const char *file_name) {
 #endif
     
     tnode = get_node(pa->message_id, group_id);
+    /* This variable is magically set by get_node(). */
+    prev_instance = previous_instance_node;
 
     if (tnode->number != 0) 
       printf("Skipping %s/%d (prev appearance %d)\n", group_name, article,
@@ -212,7 +275,6 @@ int thread_file(const char *file_name) {
     else {
       id = tnode->id;
       tnode->number = article;
-
 
       if (*pa->parent_message_id) {
 	tnode->parent = get_parent(pa->parent_message_id, group_id);
@@ -226,8 +288,8 @@ int thread_file(const char *file_name) {
       }
     
       /* Set next_instance in previous instances to point to us. */
-      if (previous_instance_node) {
-	prev_node = &nodes[previous_instance_node];
+      if (prev_instance) {
+	prev_node = &nodes[prev_instance];
 	prev_node->next_instance = id;
       }
 
@@ -242,7 +304,7 @@ int thread_file(const char *file_name) {
   } else {
     printf("Can't find an article spec for %s\n", file_name);
   }
-  return 1;
+  return;
 }
 
 void lock_and_uid(char *user) {
