@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+
+sub files_in_dir {
+    local $dir = shift;
+    local @entries;
+
+    opendir (DIR, $dir) || die;
+    @entries = sort {$b <=> $a} (readdir DIR);
+    closedir DIR;
+    return reverse @entries;
+}
+
+$dir = "/mirror/var/spool/news/articles/gmane/discuss";
+
+foreach $file (files_in_dir($dir)) {
+    if ($file =~ /^[0-9]+$/) {
+	print "$dir/$file\n";
+    }
+}
+
+

@@ -1,0 +1,8 @@
+int
+*.o
+config.log
+config.status
+configure
+.nfs*
+config.cache
+Makefile

@@ -1,0 +1,23 @@
+#!/bin/bash
+
+version=$1
+
+if [ "$version" = "" ]; then
+    echo "Usage: publish <version>"
+    exit
+fi
+
+cd /tmp
+
+cvs -d /usr/local/cvsroot co gmane/weaverd
+
+mv gmane/weaverd weaverd-$version
+cd weaverd-$version
+autoconf
+cd ..
+tar czvf weaverd-$version.tar.gz weaverd-$version
+rm -r weaverd-$version
+mv weaverd-$version.tar.gz ~www/weaver/html
+cd ~www/weaver/html
+rm -f weaverd-snapshot.tar.gz 
+ln -s weaverd-$version.tar.gz weaverd-snapshot.tar.gz 
