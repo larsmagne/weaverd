@@ -15,7 +15,7 @@
 
 #include "weaver.h"
 #include "config.h"
-#include "../mdb/util.h"
+#include "util.h"
 #include "hash.h"
 #include "input.h"
 
