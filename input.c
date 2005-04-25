@@ -17,7 +17,7 @@
 #include <unistd.h>
 
 #include "weaver.h"
-#include "../mdb/util.h"
+#include "util.h"
 #include "hash.h"
 #include "config.h"
 

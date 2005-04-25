@@ -18,7 +18,7 @@
 #include "config.h"
 #include "hash.h"
 #include "input.h"
-#include "../mdb/util.h"
+#include "util.h"
 
 #define MAX_FILE_NAME 10000
 

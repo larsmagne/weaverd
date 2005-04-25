@@ -17,7 +17,7 @@
 #include "config.h"
 #include "hash.h"
 #include "input.h"
-#include "../mdb/util.h"
+#include "util.h"
 
 group groups[MAX_GROUPS];
 int alphabetic_groups[MAX_GROUPS];

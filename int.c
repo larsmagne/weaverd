@@ -18,7 +18,7 @@
 #include "config.h"
 #include "hash.h"
 #include "input.h"
-#include "../mdb/util.h"
+#include "util.h"
 
 struct option long_options[] = {
   {"spool", 1, 0, 's'},
