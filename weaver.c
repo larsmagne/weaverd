@@ -271,13 +271,6 @@ int max (int val1, int val2) {
     return val2;
 }
 
-int min (int val1, int val2) {
-  if (val1 < val2)
-    return val1;
-  else
-    return val2;
-}
-
 void enter_node_numerically(group *tgroup, node *tnode) {
   unsigned int *nnodes = tgroup->numeric_nodes;
   nnodes[tnode->number] = tnode->id;
