@@ -146,7 +146,7 @@ parsed_article *parse_file(const char *file_name) {
 	}
 	if (subject == strstr(subject, "re:") ||
 	    subject == strstr(subject, "Re:") ||
-	    subject == strstr(subject, "eR:") ||
+	    subject == strstr(subject, "rE:") ||
 	    subject == strstr(subject, "RE:")) {
 	  subject += 3;
 	  washed_subject = 0;
