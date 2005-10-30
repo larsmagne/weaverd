@@ -838,7 +838,10 @@ void output_group_threads(FILE *client, const char *group_name,
     nnode = &nodes[tnode->id];
     if (nnode->number <= last)
       articles++;
-    if (articles >= page_size)
+    /* We want to output one more article that is going to be
+       displayed.  Loom wants one extra article do to the nice
+       threaded display that's to be continued on the next page. */
+    if (articles >= page_size + 1)
       break;
   }
 
