@@ -9,3 +9,4 @@ Makefile
 weaverd
 size
 simple
+*.cache
