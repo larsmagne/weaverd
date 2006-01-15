@@ -20,7 +20,7 @@
 #include "input.h"
 
 char *string_storage = NULL;
-int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
+unsigned int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
 int next_string = 0;
 static int string_storage_file = 0;
 
@@ -65,7 +65,7 @@ char *get_string(int offset) {
 }
 
 void extend_string_storage(void) {
-  int new_length = string_storage_length * 2;
+  unsigned int new_length = string_storage_length * 2;
   char *new_string_storage = cmalloc(new_length);
   
 #ifdef USAGE
