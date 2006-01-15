@@ -25,6 +25,6 @@ void enter_external_to_internal_group_name_map(const char *external,
 
 extern int next_string;
 extern char *string_storage;
-extern int string_storage_length;
+extern unsigned int string_storage_length;
 
 #endif
