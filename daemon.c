@@ -50,7 +50,7 @@ dispatcher dispatchers[] = {
   {NULL, NULL, {0}}  
 };
 
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 8192
 
 int server_socket = 0;
 static int port = 8010;
@@ -90,7 +90,8 @@ int parse_args(int argc, char **argv) {
 int main(int argc, char **argv) {
   struct sockaddr_in sin, caddr;
   int wsd;
-  int addlen, peerlen;
+  int peerlen;
+  socklen_t addlen;
   time_t now;
   char *s;
   char buffer[BUFFER_SIZE];
@@ -209,6 +210,7 @@ int main(int argc, char **argv) {
 	thread_file(expression[1]);
 	if (! (input_times++ % 100) && auto_flush_p)
 	  flush();
+	flush();
 	message = 0;
       } else if (!strcmp(command, "thread") && nitems == 3) {
 	output_one_thread(client, expression[1], atoi(expression[2]));
@@ -244,12 +246,16 @@ int main(int argc, char **argv) {
 	output_lookup(client, expression[1]);
       } else if (!strcmp(command, "newgroup") && nitems > 2) {
 	newgroup(client, expression[1], expression + 2, nitems - 2);
+	flush();
       } else if (!strcmp(command, "rmgroup") && nitems == 2) {
 	rmgroup(client, expression[1]);
+	flush();
       } else if (!strcmp(command, "cancel") && nitems == 2) {
 	cancel_message_id(client, expression[1]);
+	flush();
       } else if (!strcmp(command, "cancel-article") && nitems == 3) {
 	cancel_article(client, expression[1], atoi(expression[2]));
+	flush();
       } else if (!strcmp(command, "flatten")) {
 	inhibit_thread_flattening = 0;
 	flatten_groups();
