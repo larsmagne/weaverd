@@ -24,25 +24,24 @@ int alphabetic_groups[MAX_GROUPS];
 int inhibit_thread_flattening = 0;
 int inhibit_file_writes = 0;
 int num_groups = 0;
+char *news_spool = NEWS_SPOOL;
 
 node *nodes;
-unsigned int nodes_length = 0;
+loff_t nodes_length = 0;
 char *index_dir = INDEX_DIR;
 
 unsigned int current_node = 0;
 static int node_file = 0;
 
-#define MAX_ARTICLES 1000000
+#define MAX_ARTICLES 4000000
 
 static int flattened[MAX_ARTICLES];
 
 void extend_node_storage(void) {
   int new_length = nodes_length * 2;
   node *new_nodes = (node*) cmalloc(new_length * sizeof(node));
-#ifdef USAGE
   printf("Extending node storage from %dM to %dM\n",
 	 meg(nodes_length * sizeof(node)), meg(new_length * sizeof(node)));
-#endif
   memcpy(new_nodes, nodes, nodes_length * sizeof(node));
   crfree(nodes, nodes_length * sizeof(node));
   nodes = new_nodes;
@@ -185,9 +184,10 @@ loff_t allocate_nodes(void) {
     merror("Opening the node file.");
  
   fsize = file_size(node_file);
-  if (fsize == 0) 
+  if (fsize == 0 || 
+      fsize < (INITIAL_NODE_LENGTH  * sizeof(node))) 
     nodes_length = INITIAL_NODE_LENGTH * sizeof(node);
-  else
+  else 
     nodes_length = fsize * 1.4;
 
   nodes = (node*) cmalloc(nodes_length);
@@ -230,7 +230,7 @@ unsigned int get_parent_by_subject(const char *subject,
   int recursion = 0;
   group *g = &groups[group_id];
 
-  printf("Searching for subject %s\n", subject);
+  //printf("Searching for subject %s\n", subject);
 
   for (i = g->nodes_length - 1; i >= 0; i--) {
     n = g->numeric_nodes[i];
@@ -300,13 +300,17 @@ void flatten_thread(node *nnode, thread_node *tnodes, unsigned int group_id,
 
   flattened[nnode->number] = 1;
 
-  if (nnode->group_id == group_id && nnode->author != 0) {
-    tnode = &(tnodes[thread_index++]);
-    tnode->id = nnode->id;
-    tnode->depth = depth;
+  if (nnode->group_id == group_id) {
+    /* Article hasn't been cancelled. */
+    if (nnode->author != 0) {
+      tnode = &(tnodes[thread_index++]);
+      tnode->id = nnode->id;
+      tnode->depth = depth;
+    }
 
     if (nnode->first_child) 
-      flatten_thread(&nodes[nnode->first_child], tnodes, group_id, depth+1);
+      flatten_thread(&nodes[nnode->first_child], tnodes, group_id,
+		     (nnode->author == 0? depth: depth+1));
 
     while ((sibling = nnode->next_sibling) != 0) {
       nnode = &nodes[nnode->next_sibling];
@@ -367,9 +371,9 @@ void enter_node_threadly(group *tgroup, node *tnode) {
 
 void extend_group_node_tables(group *tgroup, unsigned int min) {
   unsigned int length = tgroup->nodes_length, new_length = 0;
-  unsigned int area, new_area;
+  size_t area, new_area;
 
-  new_length = length;
+  new_length = length * 2;
   while (new_length < (min + 2)) {
     if (new_length == 0) 
       new_length = 64;
@@ -380,13 +384,12 @@ void extend_group_node_tables(group *tgroup, unsigned int min) {
   area = length * sizeof(int);
   new_area = new_length * sizeof(int);
 
-#ifdef USAGE
-  printf("Extending group node tables from %dM to %dM (times two)\n",
-	 meg(area), meg(new_area));
-#endif
+  printf("Extending group node table from %ld to %ld (times two)\n",
+	 area, new_area);
 
-  tgroup->numeric_nodes = (int*)crealloc(tgroup->numeric_nodes, new_area,
-					 area);
+  tgroup->numeric_nodes = (unsigned int*)crealloc(tgroup->numeric_nodes,
+						  new_area,
+						  area);
   bzero((char*)tgroup->numeric_nodes + area, new_area - area);
 
   area = length * sizeof(thread_node);
@@ -404,7 +407,7 @@ void thread(node *tnode, int do_thread) {
   unsigned int number = tnode->number;
 
   if (number + 2 >= tgroup->nodes_length)
-    extend_group_node_tables(tgroup, number);
+    extend_group_node_tables(tgroup, number + 2);
 
   enter_node_numerically(tgroup, tnode);
 
@@ -544,7 +547,7 @@ int num_crossposted_children(node *nnode) {
 int output_one_node(FILE *client, node *nnode, int depth) {
   int children = 0, j;
 
-  if (output_thread_length++ >= MAX_THREAD_LENGTH)
+  if (++output_thread_length >= MAX_THREAD_LENGTH)
     return -1;
 
   children = num_crossposted_children(nnode);
@@ -570,7 +573,7 @@ void output_thread(FILE *client, node *nnode, int depth) {
   int i, children;
   node **cchildren;
 
-  if (depth >= MAX_THREAD_DEPTH)
+  if (depth >= MAX_THREAD_DEPTH - 1)
     return;
 
   /* Find the first instance of this Message-ID in case of
@@ -597,6 +600,12 @@ void output_thread(FILE *client, node *nnode, int depth) {
     output_children[depth - 1]--;
 
   cchildren = (node**) malloc(children * sizeof(node*));
+  if (cchildren == NULL) {
+    int size;
+    printf("Failed to allocate %ld bytes\n", children * sizeof(node*));
+    size = 0;
+    size = 4 / size;
+  }
   for (i = 0; i < children; i++) 
     cchildren[i] = crossposted_children[i];
 
@@ -672,7 +681,7 @@ void output_root(FILE *client, const char *group_name, int article) {
 void output_thread_roots(FILE *client, const char *group_name, 
 			 int page, int page_size, int rootsp) {
   group *g = find_group(internal_group_name(group_name));
-  int total, i, nthread = 0;
+  int total = 0, i, nthread = 0;
   node *nnode;
   thread_node *tnode;
 
@@ -751,7 +760,9 @@ void output_days(FILE *client, const char *group_name, time_t start) {
     if (n != 0) {
       nnode = &nodes[n];
       if (nnode->date >= start && nnode->date <= stop) {
-	days[(nnode->date - start) / (24*60*60)]++;
+	int day = (nnode->date - start) / (24*60*60);
+	if (day <= 31 && day >= 0)
+	  days[day]++;
       }
     }
   }
