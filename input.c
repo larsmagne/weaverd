@@ -376,7 +376,9 @@ void mmlock(void *area, int size) {
 
 void lock_and_uid(char *user) {
   struct passwd *pw;
+  /*
   struct rlimit rlim;
+  */
 
   pw = getpwnam(user);
 
