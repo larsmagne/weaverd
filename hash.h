@@ -23,7 +23,7 @@ char *internal_group_name(const char *external);
 void enter_external_to_internal_group_name_map(const char *external, 
 					       const char *internal);
 
-extern int next_string;
+extern unsigned int next_string;
 extern char *string_storage;
 extern unsigned int string_storage_length;
 
