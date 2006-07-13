@@ -257,10 +257,12 @@ int main(int argc, char **argv)
     inhibit_thread_flattening = 1;
     inhibit_file_writes = 0;
     *(spool+strlen(news_spool)-1) = 0;
-    //input_directory("/mirror/var/spool/news/articles/gmane/comp/lib/glibc/bugs");
+    input_directory("/mirror/var/spool/news/articles/gmane/comp/lib/glibc/bugs");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/gnu/stow/bugs");
     //input_directory("/mirror/var/spool/news/articles/gmane/linux");
-    input_directory(spool);
+    //input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    //input_directory("/mirror/var/spool/news/articles/gmane/comp/graphics/ipe/general");
+    //input_directory(spool);
     flush();
     clean_up();
     clean_up_hash();
