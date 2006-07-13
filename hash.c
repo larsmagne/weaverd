@@ -21,7 +21,7 @@
 
 char *string_storage = NULL;
 unsigned int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
-int next_string = 0;
+unsigned int next_string = 0;
 static int string_storage_file = 0;
 
 static int *string_storage_table = NULL;
@@ -58,7 +58,7 @@ unsigned int hash(const char *key, unsigned int len,
   return (hash & (table_length - 1));
 } 
 
-char *get_string(int offset) {
+char *get_string(unsigned int offset) {
   // FIXME
   // wash_string(string_storage + offset);
   return string_storage + offset;
@@ -68,10 +68,8 @@ void extend_string_storage(void) {
   unsigned int new_length = string_storage_length * 2;
   char *new_string_storage = cmalloc(new_length);
   
-#ifdef USAGE
   printf("Extending string storage from %dM to %dM\n", 
 	 meg(string_storage_length), meg(new_length));
-#endif
   memcpy(new_string_storage, string_storage, string_storage_length);
   crfree(string_storage, string_storage_length);
   string_storage = new_string_storage;
@@ -80,8 +78,9 @@ void extend_string_storage(void) {
 
 unsigned int enter_string_storage(const char *string) {
   int string_length = strlen(string);
-  int search = hash(string, string_length, string_storage_table_length);
-  int offset;
+  unsigned int search = hash(string, string_length,
+			     string_storage_table_length);
+  unsigned int offset;
 
 #if 0
   int candidate = search;
@@ -94,12 +93,12 @@ unsigned int enter_string_storage(const char *string) {
     else if (offset && 
 	     ! strcmp(string, (string_storage + offset)))
       break;
-    if (search++ >= string_storage_table_length)
+    if (++search >= string_storage_table_length)
       search = 0;
   }
 
   if (! offset) {
-    if (next_string + string_length >= string_storage_length)
+    if (next_string + string_length + 1 >= string_storage_length)
       extend_string_storage();
     strcpy((string_storage + next_string), string);
     if (! inhibit_file_write &&
@@ -119,8 +118,9 @@ unsigned int enter_string_storage(const char *string) {
 
 unsigned int initial_enter_string_storage(const char *string) {
   int string_length = strlen(string);
-  int search = hash(string, string_length, string_storage_table_length);
-  int offset;
+  unsigned int search = hash(string, string_length,
+			     string_storage_table_length);
+  unsigned int offset;
 
   while (1) {
     offset = string_storage_table[search];
@@ -129,7 +129,7 @@ unsigned int initial_enter_string_storage(const char *string) {
     else if (offset && 
 	     ! strcmp(string, (string_storage + offset)))
       break;
-    if (search++ >= string_storage_table_length)
+    if (++search >= string_storage_table_length)
       search = 0;
   }
 
@@ -174,7 +174,7 @@ void populate_string_table_from_file(int fd) {
 
 void smart_populate_string_table_from_file(int fd) {
   loff_t fsize = file_size(fd);
-  int offset = 0;
+  unsigned int offset = 0;
 
   read_block(string_storage_file, string_storage, fsize);
   while (offset < fsize) 
