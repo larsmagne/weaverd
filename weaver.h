@@ -100,7 +100,8 @@ extern int inhibit_file_writes;
 extern unsigned int mem;
 extern unsigned int current_node;
 extern int num_groups;
-extern unsigned int nodes_length;
+extern loff_t nodes_length;
+extern char *news_spool;
 
 #endif
 
