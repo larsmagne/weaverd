@@ -3,8 +3,9 @@
 
 #undef DEBUG
 
+/* #define SMALL */
 
-#define MAX_GROUPS (1024 * 16)
+#define MAX_GROUPS (1024 * 32)
 #define GROUP_FILE "groups.db"
 #define NODE_FILE "nodes.db"
 #define STRING_STORAGE_FILE "strings.db"
@@ -13,14 +14,23 @@
 #define NEWS_SPOOL "/mirror/var/spool/news/articles/"
 #define INDEX_DIR "/index/weave"
 
-#define INITIAL_STRING_STORAGE_LENGTH (1024 * 1024 * 1800)
-#define GROUP_TABLE_LENGTH MAX_GROUPS
-#define INITIAL_NODE_LENGTH (1024 * 1024 * 21)
-
+#ifdef SMALL
 /* Must be powers of two. */
-#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 32)
-#define STRING_STORAGE_TABLE_LENGTH (1024 * 1024 * 64)
+#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024)
+#define STRING_STORAGE_TABLE_LENGTH (1024 * 1024)
 
+#define INITIAL_STRING_STORAGE_LENGTH ((unsigned int)1024 * 1024 * 24)
+#define INITIAL_NODE_LENGTH (1024 * 1024)
+#else
+/* Must be powers of two. */
+#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 128)
+#define STRING_STORAGE_TABLE_LENGTH (1024 * 1024 * 256)
+
+#define INITIAL_STRING_STORAGE_LENGTH ((unsigned int)1024 * 1024 * 2600) 
+#define INITIAL_NODE_LENGTH (1024 * 1024 * 64)
+#endif
+
+#define GROUP_TABLE_LENGTH MAX_GROUPS
 
 /* If you have a Linux with O_STREAMING, use the following define. */
 #define O_STREAMING    04000000
