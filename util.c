@@ -9,14 +9,13 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#include "tokenizer.h"
 #include "config.h"
-#include "mdb.h"
 #include "util.h"
 #include <dirent.h>
 #include <errno.h>
 #include <time.h>
 #include <ctype.h>
+#include <unistd.h>
 
 static unsigned int mem_used = 0;
 
@@ -59,10 +58,13 @@ loff_t file_size(int fd) {
 
 
 /* The same as malloc, but returns a char*, and clears the memory. */
-char *cmalloc(int size) {
+char *cmalloc(size_t size) {
   char *b = (char*)malloc(size);
-  if (b == NULL)
-    printf("Failed to allocate %d bytes\n", size);
+  if (b == NULL) {
+    printf("Failed to allocate %ld bytes\n", size);
+    size = 0;
+    size = 4 / size;
+  }
   mem_used += size;
   if (size > 1000000)
     printf("Allocating %fM\n", (float)size/(1024*1024)); 
@@ -76,9 +78,16 @@ void crfree(void *ptr, int size) {
 }
 
 void *crealloc(void *ptr, size_t size, size_t old_size) {
+  void *result;
   mem_used -= old_size;
   mem_used += size;
-  return realloc(ptr, size);
+  result = realloc(ptr, size);
+  if (result == NULL) {
+    printf("Failed to reallocate %ld bytes to %ld\n", old_size, size);
+    size = 0;
+    size = 4 / size;
+  }
+  return result;
 }
 
 void mem_usage(void) {
@@ -121,7 +130,7 @@ void read_block(int fd, char *block, int block_size) {
       fprintf(stderr, "Reached end of file (block_size: %d).\n", block_size);
       exit(1);
     } else if (ret == -1) {
-      printf("Reading into %x\n", (int)block);
+      printf("Reading into %lx\n", (long)block);
       merror("Reading a block");
     }
       
