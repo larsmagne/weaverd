@@ -440,9 +440,9 @@ void read_conf_file(void) {
 	  group_name = string;
 	else if (i == 3)
 	  description = string;
-	else if (i > 5 && strstr(string, "external=") == string)
+	else if (i > 4 && strstr(string, "external=") == string)
 	  external_name = string + strlen("external=");
-	else if (i > 5 && strstr(string, "other-names=") == string)
+	else if (i > 4 && strstr(string, "other-names=") == string)
 	  other_names = string + strlen("other-names=");
       }
 
