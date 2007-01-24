@@ -59,8 +59,6 @@ unsigned int hash(const char *key, unsigned int len,
 } 
 
 char *get_string(unsigned int offset) {
-  // FIXME
-  // wash_string(string_storage + offset);
   return string_storage + offset;
 }
 
@@ -540,6 +538,7 @@ void clean_up_hash(void) {
 
 void enter_external_to_internal_group_name_map(const char *external, 
 					       const char *internal) {
+  printf("Mapping %s to %s\n", external, internal);
   g_hash_table_insert(external_to_internal_group_name_table,
 		      (gpointer)strdup(external),
 		      (gpointer)strdup(internal));
