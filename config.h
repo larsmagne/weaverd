@@ -5,7 +5,7 @@
 
 /* #define SMALL */
 
-#define MAX_GROUPS (1024 * 32)
+#define MAX_GROUPS (1024 * 64)
 #define GROUP_FILE "groups.db"
 #define NODE_FILE "nodes.db"
 #define STRING_STORAGE_FILE "strings.db"
