@@ -8,6 +8,8 @@ open (TAIL, "tail -n 300000 -f /tmp/history|") || die;
 $found = 0;
 $found = 1 if (! $cutoff);
 
+$host = "localhost";
+
 while (<TAIL>) {
     chop;
     ($time, $file) = split;
@@ -37,9 +39,9 @@ while (<TAIL>) {
 		close FILE;
 		if (! $spam) {
 		    print "Threadable.\n";
-		    system("echo 'input $file' | nc hugh 8010");
+		    system("echo 'input $file' | nc $host 8010");
 		    if (! ($times++ % 100)) {
-			system("echo 'flush' | nc hugh 8010");
+			system("echo 'flush' | nc $host 8010");
 		    }
 		}
 	    }
