@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <math.h>
 
 #include "config.h"
 #include "util.h"
@@ -66,8 +67,10 @@ char *cmalloc(size_t size) {
     size = 4 / size;
   }
   mem_used += size;
-  if (size > 1000000)
+  if (size > 1000000) {
     printf("Allocating %fM\n", (float)size/(1024*1024)); 
+    printf("Allocated at %lx\n", (long)b);
+  }
   bzero(b, size);
   return b;
 }
@@ -121,27 +124,42 @@ void merror(char *error) {
 
 
 /* Read a block from a file into memory. */
-void read_block(int fd, char *block, int block_size) {
-  int rn = 0, ret;
+void read_block_1(int fd, char *block, size_t block_size) {
+  size_t rn = 0;
+  int ret;
   
   while (rn < block_size) {
     ret = read(fd, block + rn, block_size - rn);
     if (ret == 0) {
-      fprintf(stderr, "Reached end of file (block_size: %d).\n", block_size);
+      fprintf(stderr, "Reached end of file (block_size: %lx).\n", block_size);
       exit(1);
     } else if (ret == -1) {
+      int size;
       printf("Reading into %lx\n", (long)block);
-      merror("Reading a block");
+      size = 0;
+      size = 4 / size;
     }
       
     rn += ret;
   }
 }
 
+void read_block(int fd, char *block, size_t block_size) {
+  size_t read = 0, max_length = 0x1000000;
+
+  do {
+    size_t size = min(max_length, block_size);
+    read_block_1(fd, block + read, size);
+    read += size;
+    block_size -= size;
+  } while (block_size > 0);
+}
+
+
 
 /* Read a block from a file at a specified offset into a in-memory
    block. */
-void read_into(int fd, int block_id, char *block, int block_size) {
+void read_into(int fd, int block_id, char *block, size_t block_size) {
   if (lseek64(fd, (loff_t)block_id * block_size, SEEK_SET) == -1) {
     merror("Seeking before reading a block");
   }
@@ -150,7 +168,7 @@ void read_into(int fd, int block_id, char *block, int block_size) {
 }
 
 
-int min (int one, int two) {
+size_t min (size_t one, size_t two) {
   if (one < two)
     return one;
   else
