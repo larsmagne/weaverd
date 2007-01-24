@@ -205,10 +205,11 @@ parsed_article *parse_file(const char *file_name) {
   return &pa;
 }
 
+/* Strip pointy brackets off a Message-ID. */
 void fix_message_id(char *id) {
   char *p = id, *q = id, c;
-  while ((c = *p++) &&
-	 (c != '<'))
+  while (((c = *p++) != 0) &&
+	 (c == '<'))
     ;
   while (((c = *p++) != 0) &&
 	 (c != '>'))
