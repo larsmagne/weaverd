@@ -87,67 +87,27 @@ int parse_args(int argc, char **argv) {
   return optind;
 }
 
-int main(int argc, char **argv) {
-  struct sockaddr_in sin, caddr;
+time_t start_time;
+
+void handle_clients () {
   int wsd;
   int peerlen;
   socklen_t addlen;
-  time_t now;
   char *s;
   char buffer[BUFFER_SIZE];
   char *expression[MAX_SEARCH_ITEMS];
   int nitems = 0;
-  static int so_reuseaddr = TRUE;
-  int dirn, i;
+  int i;
+  struct sockaddr_in caddr;
+  time_t now;
   char *command, *group_name;
   int page, page_size, last;
   int message = 0;
-  time_t start_time;
   int commands = 0, last_total_commands = 0;
   int elapsed;
   FILE *client;
   char *match;
   int input_times = 0, auto_flush_p = 0, read_result;
-
-  dirn = parse_args(argc, argv);
-
-  init();
-  /* Don't inhibit thread flattering by default. */
-  inhibit_thread_flattening = 0;
-
-  if (signal(SIGHUP, closedown) == SIG_ERR) {
-    perror("Signal");
-    exit(1);
-  }
-
-  if (signal(SIGINT, closedown) == SIG_ERR) {
-    perror("Signal");
-    exit(1);
-  }
-
-  if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
-    perror("No socket");
-    exit(1);
-  }
-
-  setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr, 
-	     sizeof(so_reuseaddr));
-
-  sin.sin_family = AF_INET;
-  sin.sin_port = htons(port);
-  sin.sin_addr.s_addr = htonl(INADDR_ANY);
-
-  if (bind(server_socket, (struct sockaddr*)&sin, sizeof(sin)) == -1) {
-    perror("Bind");
-    exit(1);
-  }
-
-  if (listen(server_socket, 120) == -1) {
-    perror("Bad listen");
-    exit(1);
-  }
-
-  time(&start_time);
 
   printf("Accepting...\n");
 
@@ -292,6 +252,64 @@ int main(int argc, char **argv) {
       printf("Connection closed at %s", ctime(&now));
     }
   }
+}
+
+void sigpipe_handle_clients(int);
+
+void sigpipe_handle_clients(int ignore) {
+  signal(SIGPIPE, sigpipe_handle_clients);
+  printf("Got a SIGPIPE; continuing.\n");
+}
+
+int main(int argc, char **argv) {
+  parse_args(argc, argv);
+  struct sockaddr_in sin;
+  static int so_reuseaddr = TRUE;
+
+  init();
+  /* Don't inhibit thread flattering by default. */
+  inhibit_thread_flattening = 0;
+
+  if (signal(SIGHUP, closedown) == SIG_ERR) {
+    perror("Signal");
+    exit(1);
+  }
+
+  if (signal(SIGINT, closedown) == SIG_ERR) {
+    perror("Signal");
+    exit(1);
+  }
+
+  if (signal(SIGPIPE, SIG_IGN) == SIG_ERR) {
+    perror("Signal");
+    exit(1);
+  }
+
+  if ((server_socket = socket(AF_INET, SOCK_STREAM, 0)) == -1) {
+    perror("No socket");
+    exit(1);
+  }
+
+  setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &so_reuseaddr, 
+	     sizeof(so_reuseaddr));
+
+  sin.sin_family = AF_INET;
+  sin.sin_port = htons(port);
+  sin.sin_addr.s_addr = htonl(INADDR_ANY);
+
+  if (bind(server_socket, (struct sockaddr*)&sin, sizeof(sin)) == -1) {
+    perror("Bind");
+    exit(1);
+  }
+
+  if (listen(server_socket, 120) == -1) {
+    perror("Bad listen");
+    exit(1);
+  }
+
+  time(&start_time);
+
+  handle_clients();
 
   exit(1);
 }
