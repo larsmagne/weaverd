@@ -190,6 +190,7 @@ loff_t allocate_nodes(void) {
   else 
     nodes_length = fsize * 1.4;
 
+  printf("Allocating %ld bytes for nodes\n", nodes_length);
   nodes = (node*) cmalloc(nodes_length);
 
   return fsize;
