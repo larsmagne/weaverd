@@ -113,6 +113,7 @@ void handle_clients () {
 
   while (TRUE) {
     nitems = 0;
+    addlen = sizeof(caddr);
     wsd = accept(server_socket, (struct sockaddr*)&caddr, &addlen);
     if (wsd == -1) {
       printf("Server socket %d\n", server_socket);
