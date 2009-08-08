@@ -12,7 +12,7 @@ sub files_in_dir {
     return reverse @entries;
 }
 
-$dir = "/mirror/var/spool/news/articles/gmane/comp/java/drools/devel";
+$dir = "/mirror/var/spool/news/articles/gmane/comp/java/openjdk/announce";
 
 foreach $file (files_in_dir($dir)) {
     if ($file =~ /^[0-9]+$/) {

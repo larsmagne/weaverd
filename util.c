@@ -123,6 +123,8 @@ void merror(char *error) {
 }
 
 
+int bug_out = 1;
+
 /* Read a block from a file into memory. */
 void read_block_1(int fd, char *block, size_t block_size) {
   size_t rn = 0;
@@ -134,10 +136,10 @@ void read_block_1(int fd, char *block, size_t block_size) {
       fprintf(stderr, "Reached end of file (block_size: %lx).\n", block_size);
       exit(1);
     } else if (ret == -1) {
-      int size;
       printf("Reading into %lx\n", (long)block);
-      size = 0;
-      size = 4 / size;
+      perror("Error: ");
+      bug_out = 0;
+      bug_out = 4 / bug_out;
     }
       
     rn += ret;

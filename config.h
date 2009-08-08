@@ -3,14 +3,13 @@
 
 #undef DEBUG
 
-/* #define SMALL */
+#define SMALL
 
 #define MAX_GROUPS (1024 * 64)
 #define GROUP_FILE "groups.db"
 #define NODE_FILE "nodes.db"
 #define STRING_STORAGE_FILE "strings.db"
 #define MAX_STRING_SIZE 10240
-#define MAX_NODES 25000000
 #define NEWS_SPOOL "/mirror/var/spool/news/articles/"
 #define INDEX_DIR "/index/weave"
 
@@ -23,11 +22,11 @@
 #define INITIAL_NODE_LENGTH (1024 * 1024)
 #else
 /* Must be powers of two. */
-#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 128)
-#define STRING_STORAGE_TABLE_LENGTH (1024 * 1024 * 256)
+#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 256)
+#define STRING_STORAGE_TABLE_LENGTH (1024 * 1024 * 512)
 
-#define INITIAL_STRING_STORAGE_LENGTH ((unsigned int)1024 * 1024 * 2600) 
-#define INITIAL_NODE_LENGTH (1024 * 1024 * 64)
+#define INITIAL_STRING_STORAGE_LENGTH ((unsigned int)1024 * 1024 * 4095) 
+#define INITIAL_NODE_LENGTH (1024 * 1024 * 120)
 #endif
 
 #define GROUP_TABLE_LENGTH MAX_GROUPS

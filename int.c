@@ -31,7 +31,7 @@ struct option long_options[] = {
   {0, 0, 0, 0}
 };
 
-static int output_thread = 0;
+static int do_output_thread = 0;
 static int input_spool = 0;
 static int input_conf = 0;
 static char *lock_user = NULL;
@@ -64,7 +64,7 @@ int parse_args(int argc, char **argv) {
       break;
       
     case 't':
-      output_thread = 1;
+      do_output_thread = 1;
       break;
       
     case 'r':
@@ -243,8 +243,12 @@ int main(int argc, char **argv)
   init();
   time(&start_time);
 
-  if (output_thread) {
-    output_threads("gmane.discuss");
+  if (do_output_thread) {
+    // First
+    output_thread(stdout, find_node("m3ljlvshlj.fsf@quimbies.gnus.org"), 0);
+    // Second
+    //output_thread(stdout, find_node("m3skg3y031.fsf@quimbies.gnus.org"), 0);
+    //output_threads("gmane.discuss");
     exit(0);
   } 
 
@@ -260,9 +264,10 @@ int main(int argc, char **argv)
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/lib/glibc/bugs");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/gnu/stow/bugs");
     //input_directory("/mirror/var/spool/news/articles/gmane/linux");
-    //input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    input_directory("/mirror/var/spool/news/articles/gmane/test");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/graphics/ipe/general");
-    input_directory(spool);
+    //input_directory(spool);
     flush();
     clean_up();
     clean_up_hash();

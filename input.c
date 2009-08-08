@@ -3,7 +3,6 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#define  __USE_XOPEN2K
 #include <fcntl.h>
 #include <getopt.h>
 #include <dirent.h>
@@ -56,7 +55,7 @@ int quoted_in_body_p (const char *file_name) {
   }
 
   while ((read_size = read(file, &buf, sizeof(buf) - 1)) > 0) {
-    buf[sizeof(buf)] = 0;
+    buf[sizeof(buf)-1] = 0;
     if (strstr(buf, "\n>")) {
       found = 1;
       break;
@@ -171,7 +170,7 @@ parsed_article *parse_file(const char *file_name) {
       else {
 	char *suffix;
 	strncpy(pa.message_id, message_id, MAX_STRING_SIZE-1);
-	*(pa.message_id+MAX_STRING_SIZE) = 0;
+	*(pa.message_id+MAX_STRING_SIZE-1) = 0;
 	if ((suffix = strstr(pa.message_id, "__")) != NULL) {
 	  char *at;
 	  if ((at = strchr(suffix, '@'))) {
@@ -208,9 +207,9 @@ parsed_article *parse_file(const char *file_name) {
 /* Strip pointy brackets off a Message-ID. */
 void fix_message_id(char *id) {
   char *p = id, *q = id, c;
-  while (((c = *p++) != 0) &&
+  while (((c = *p) != 0) &&
 	 (c == '<'))
-    ;
+    p++;
   while (((c = *p++) != 0) &&
 	 (c != '>'))
     *q++ = c;
@@ -334,6 +333,16 @@ int thread_file(const char *file_name) {
 
       if (*pa->parent_message_id) {
 	tnode->parent = get_parent(pa->parent_message_id, group_id);
+	if (article == 5337) {
+	  printf("Doing %s/%d\n", group_name, article);
+	  printf("    Found '%s' '%s'\n", pa->message_id,
+		 pa->parent_message_id);
+	  if (prev_instance) {
+	    prev_node = &nodes[prev_instance];
+	    printf("Previous '%s'\n", get_string(prev_node->message_id));
+	  }
+	}
+
 #if 0
 	if (nodes[tnode->parent].subject == 0) {
 	  printf("Not found '%s' '%s'\n", pa->message_id, 
@@ -350,7 +359,17 @@ int thread_file(const char *file_name) {
       /* Set next_instance in previous instances to point to us. */
       if (prev_instance) {
 	prev_node = &nodes[prev_instance];
-	prev_node->next_instance = id;
+	if (! prev_node->subject && ! prev_node->author && ! prev_node->date) {
+	  // The previous instance of this node is a dummy node filled
+	  // out with blanks.  So we replace the contents with out contents.
+	  prev_node->subject = enter_string_storage(pa->subject);
+	  prev_node->author = enter_string_storage(pa->author);
+	  prev_node->date = pa->date;
+	  prev_node->group_id = group_id;
+	  prev_node->number = article;
+	} else {
+	  prev_node->next_instance = id;
+	}
 	write_node(prev_node);
       }
 
@@ -418,7 +437,7 @@ void lock_and_uid(char *user) {
 }
 
 void read_conf_file(void) {
-  FILE *conf = fopen("/etc/gmane.conf", "r");
+  FILE *conf = fopen("/mnt/etc/gmane.conf", "r");
   char buf[8192];
   char *string, *group_name, *description, *external_name, *other_names;
   int i = 0;

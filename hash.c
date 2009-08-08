@@ -538,7 +538,6 @@ void clean_up_hash(void) {
 
 void enter_external_to_internal_group_name_map(const char *external, 
 					       const char *internal) {
-  printf("Mapping %s to %s\n", external, internal);
   g_hash_table_insert(external_to_internal_group_name_table,
 		      (gpointer)strdup(external),
 		      (gpointer)strdup(internal));

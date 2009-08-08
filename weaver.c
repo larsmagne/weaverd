@@ -1015,7 +1015,7 @@ void init(void) {
   read_conf_file();
 }
 
-int meg(int size) {
+int meg(unsigned int size) {
   return size/(1024*1024);
 }
 

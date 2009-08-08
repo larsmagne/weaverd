@@ -69,7 +69,7 @@ void output_group_threads(FILE *client, const char *group_name,
 void output_groups(FILE *client, const char *match);
 void init(void);
 void flatten_groups(void);
-int meg(int size);
+int meg(unsigned int size);
 void usage(void);
 void flush(void);
 void output_one_thread(FILE *client, const char *group_name, int article);
@@ -81,6 +81,7 @@ node *find_node(const char *message_id);
 void clean_up(void);
 void cancel_article(FILE *client, const char *group, int article);
 void cancel_message_id(FILE *client, const char *message_id);
+void output_thread(FILE *client, node *nnode, int depth);
 void output_thread_roots(FILE *client, const char *group_name, 
 			 int page, int page_size, int rootsp);
 void output_articles_in_period(FILE *client, const char *group_name, 
