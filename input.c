@@ -68,9 +68,6 @@ int quoted_in_body_p (const char *file_name) {
 
 static parsed_article pa;
 
-GMimeMessage *
-g_mime_parser_construct_message_headers_only (GMimeStream *stream);
-
 parsed_article *parse_file(const char *file_name) {
   GMimeStream *stream;
   GMimeMessage *msg = 0;
@@ -83,6 +80,7 @@ parsed_article *parse_file(const char *file_name) {
   InternetAddressList *iaddr_list;
   int washed_subject = 0;
   char *address, *at;
+  GMimeParser *parser;
 
   if ((file = open(file_name, O_RDONLY|O_STREAMING)) == -1) {
     printf("Can't open %s\n", file_name);
@@ -91,24 +89,25 @@ parsed_article *parse_file(const char *file_name) {
   }
 
   stream = g_mime_stream_fs_new(file);
-  msg = g_mime_parser_construct_message_headers_only(stream);
-  g_mime_stream_unref(stream);
+  parser = g_mime_parser_new_with_stream(stream);
+  msg = g_mime_parser_construct_message(parser);
+  g_object_unref(stream);
 
   if (msg != 0) {
     pa.likely_response = 0;
 
-    author = g_mime_message_get_header(msg, "From");
+    author = g_mime_object_get_header((GMimeObject*) msg, "From");
     subject = g_mime_message_get_subject(msg);
     message_id = g_mime_message_get_message_id(msg);
-    references = g_mime_message_get_header(msg, "references");
-    xref = g_mime_message_get_header(msg, "xref");
+    references = g_mime_object_get_header((GMimeObject*) msg, "references");
+    xref = g_mime_object_get_header((GMimeObject*) msg, "xref");
     original_message_id = 
-      g_mime_message_get_header(msg, "original-message-id");
+      g_mime_object_get_header((GMimeObject*) msg, "original-message-id");
     g_mime_message_get_date(msg, &date, &offset);
     if (author != NULL && subject != NULL) {
       /* Get the address from the From header. */
-      if ((iaddr_list = internet_address_parse_string(author)) != NULL) {
-	iaddr = iaddr_list->address;
+      if ((iaddr_list = internet_address_list_parse_string(author)) != NULL) {
+	iaddr = internet_address_list_get_address(iaddr_list, 0);
 	if (iaddr->name != NULL) {
 	  strncpy(pa.author, iaddr->name, MAX_STRING_SIZE-1);
 
@@ -130,7 +129,7 @@ parsed_article *parse_file(const char *file_name) {
 	  }
 	  free(address);
 	}
-	internet_address_list_destroy(iaddr_list);
+	g_object_unref(iaddr_list);
       } else {
 	*pa.author = 0;
       }
@@ -181,7 +180,7 @@ parsed_article *parse_file(const char *file_name) {
       }
 
       if (references == NULL) {
-	if (g_mime_message_get_header(msg, "in-reply-to"))
+	if (g_mime_object_get_header((GMimeObject*) msg, "in-reply-to"))
 	  pa.likely_response = 1;
 	if (quoted_in_body_p(file_name))
 	  pa.likely_response = 1;
@@ -196,7 +195,8 @@ parsed_article *parse_file(const char *file_name) {
       wash_string(pa.author);
 
       pa.date = date;
-      g_mime_object_unref(GMIME_OBJECT(msg));
+      g_object_unref(msg);
+      g_object_unref(parser);
     }
 
   }

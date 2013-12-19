@@ -1,15 +1,12 @@
-GLIB_CFLAGS = @GLIB_CFLAGS@
-GLIB_CONFIG = @GLIB_CONFIG@
-GLIB_LIBS = @GLIB_LIBS@
-GMIME_CONFIG = /usr/local/bin/gmime-config
-GMIME_CFLAGS = `$(GMIME_CONFIG) --cflags`
-GMIME_LIBS = `$(GMIME_CONFIG) --libs`
+GMIME_CONFIG = /usr/bin/pkg-config
+GMIME_CFLAGS = `$(GMIME_CONFIG) gmime-2.6 --cflags`
+GMIME_LIBS = `$(GMIME_CONFIG) gmime-2.6 --libs`
 
 HEADER_FILES=config.h util.h hash.h weaver.h input.h dispatch.h
 
-CPPFLAGS=@CPPFLAGS@ $(GMIME_CFLAGS) -I/usr/local/include -g -O3 -Wall
-LDFLAGS=@LDFLAGS@ $(GMIME_LIBS)
-CC = @CC@ $(CPPFLAGS)
+CPPFLAGS=$(GMIME_CFLAGS) -I/usr/local/include -g -O3 -Wall
+LDFLAGS=$(GMIME_LIBS)
+CC = gcc $(CPPFLAGS)
 
 all: weaverd int simple
 
@@ -20,6 +17,8 @@ weaver.o: weaver.c $(HEADER_FILES)
 input.o: input.c $(HEADER_FILES)
 
 int.o: int.c $(HEADER_FILES)
+
+util.o: util.c $(HEADER_FILES)
 
 dispatch.o: dispatch.c $(HEADER_FILES)
 

@@ -1,5 +1,3 @@
-#define _LARGEFILE64_SOURCE
-
 #include <sys/types.h>
 
 #include <stdio.h>
@@ -451,8 +449,8 @@ char *format_time(time_t date) {
   struct tm *time;
   time = localtime(&date);
   snprintf(format_time_buffer, 256, 
-	   "%d %s %02d:%02d", time->tm_mday, months[time->tm_mon],
-	   time->tm_hour, time->tm_min);
+	   "%d %s %02d:%02d %04d", time->tm_mday, months[time->tm_mon],
+	   time->tm_hour, time->tm_min, time->tm_year + 1900);
   return format_time_buffer;
 }
 
@@ -1006,7 +1004,7 @@ void output_hierarchy(FILE *client, const char *prefix) {
 void init(void) {
   loff_t fsize;
 
-  g_mime_init(GMIME_INIT_FLAG_UTF8);
+  g_mime_init(GMIME_ENABLE_RFC2047_WORKAROUNDS);
   compute_month_table();
   //g_mime_init(0);
   fsize = allocate_nodes();

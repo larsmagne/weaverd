@@ -264,10 +264,11 @@ int main(int argc, char **argv)
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/lib/glibc/bugs");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/gnu/stow/bugs");
     //input_directory("/mirror/var/spool/news/articles/gmane/linux");
-    input_directory("/mirror/var/spool/news/articles/gmane/discuss");
-    input_directory("/mirror/var/spool/news/articles/gmane/test");
+    //input_directory("/mirror/var/spool/news/articles/gmane/discuss");
+    //input_directory("/mirror/var/spool/news/articles/gmane/test");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/graphics/ipe/general");
     //input_directory(spool);
+    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware");
     flush();
     clean_up();
     clean_up_hash();
