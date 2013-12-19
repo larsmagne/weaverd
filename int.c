@@ -95,6 +95,10 @@ static time_t start_time = 0;
 static char *ignore_until = "/mirror/var/spool/news/articles/gmane/linux/skolelinux/cvs";
 static int ignoring_p = 0;
 
+int compare (const void *a, const void *b) {
+  return strcmp(*(char**) a, *(char**)b);
+}
+
 void input_directory(const char* dir_name) {
   time_t now;
   int elapsed;
@@ -103,51 +107,101 @@ void input_directory(const char* dir_name) {
   char file_name[MAX_FILE_NAME];
   struct stat stat_buf;
   int prohibited_p = 0;
+  char *all_files, *files;
+  char *all_dirs, *dirs;
+  size_t dir_size;
+  int total_files, num_files = 0, i = 0;
+  char **file_array;
 
   printf("%s\n", dir_name); 
 
   if ((dirp = opendir(dir_name)) == NULL)
     return;
-    
+
+  if (fstat(dirfd(dirp), &stat_buf) == -1) {
+    closedir(dirp);
+    return;
+  }
+  
+  // The total size of the file names shouldn't exceed the size
+  // of the directory file.  So we just use that as the size.  It's
+  // wasteful, but meh.
+  dir_size = stat_buf.st_size + 100;
+  all_files = malloc(dir_size);
+  files = all_files;
+  bzero(all_files, dir_size);
+  
+  all_dirs = malloc(dir_size);
+  dirs = all_dirs;
+  bzero(all_dirs, dir_size);
+
+  // Go through all the files in the directory and put files
+  // in one array and directories in another.
   while ((dp = readdir(dirp)) != NULL) {
-
-    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name,
-	     dp->d_name);
-
     if (strcmp(dp->d_name, ".") &&
-	strcmp(dp->d_name, "..")) {
-    
-      if (stat(file_name, &stat_buf) == -1) {
-	perror("tokenizer");
-	break;
-      }
-    
-      if (S_ISDIR(stat_buf.st_mode)) { 
-	if (! strcmp(file_name, ignore_until))
-	  ignoring_p = 0;
-	 if (ignoring_p == 0 || stat_buf.st_nlink > 2)
-	   input_directory(file_name);
-      } else if (ignoring_p == 0 && is_number(dp->d_name) 
-		 && prohibited_p == 0) {
-	prohibited_p = thread_file(file_name);
-	if (!(commands++ % 10000)) {
-	  time(&now);
-	  elapsed = now - start_time;
-	  printf("    %d files (%d/s, last %d seconds)\n",
-		 commands - 1, 
-		 (elapsed?
-		  (int)(10000 / elapsed):
-		  0), 
-		 elapsed);
-	  start_time = now;
-	  printf("    %d bytes string storage per file\n",
-		 next_string / commands);
-	  mem_usage();
-	}
+        strcmp(dp->d_name, "..")) {
+      snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dp->d_name);
+      if (lstat(file_name, &stat_buf) != -1) {
+        if (S_ISDIR(stat_buf.st_mode)) {
+	  if (! strcmp(file_name, ignore_until))
+	    ignoring_p = 0;
+	  if (ignoring_p == 0) {
+	    strcpy(dirs, dp->d_name);
+	    dirs += strlen(dp->d_name) + 1;
+	  }
+        } else if (S_ISREG(stat_buf.st_mode)) {
+	  if (ignoring_p == 0 && is_number(dp->d_name)) {
+	    total_files++;
+	    num_files++;
+	    strcpy(files, dp->d_name);
+	    files += strlen(dp->d_name) + 1;
+	  }
+        }
       }
     }
   }
+
   closedir(dirp);
+
+  files = all_files;
+  file_array = calloc(sizeof(char*), num_files);
+  while (*files) {
+    file_array[i++] = files;
+    files += strlen(files) + 1;
+  }
+  qsort(file_array, num_files, sizeof(char*), compare);
+
+  for (i = 0; i < num_files; i++) {
+    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name,
+	     file_array[i]);
+    if (prohibited_p == 0) {
+      prohibited_p = thread_file(file_name);
+      if (!(commands++ % 10000)) {
+	time(&now);
+	elapsed = now - start_time;
+	printf("    %d files (%d/s, last %d seconds)\n",
+	       commands - 1, 
+	       (elapsed?
+		(int)(10000 / elapsed):
+		0), 
+	       elapsed);
+	start_time = now;
+	printf("    %d bytes string storage per file\n",
+	       next_string / commands);
+	mem_usage();
+      }
+    }
+  }
+ free(file_array);
+  
+ dirs = all_dirs;
+ while (*dirs) {
+   snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dirs);
+   input_directory(file_name);
+   dirs += strlen(dirs) + 1;
+ }
+ free(all_files);
+ free(all_dirs);
 }
 
 char *get_group_directory(const char *group) {
@@ -268,7 +322,7 @@ int main(int argc, char **argv)
     //input_directory("/mirror/var/spool/news/articles/gmane/test");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/graphics/ipe/general");
     //input_directory(spool);
-    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware");
+    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware/ibm/midrange");
     flush();
     clean_up();
     clean_up_hash();

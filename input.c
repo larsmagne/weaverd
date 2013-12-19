@@ -104,7 +104,10 @@ parsed_article *parse_file(const char *file_name) {
     original_message_id = 
       g_mime_object_get_header((GMimeObject*) msg, "original-message-id");
     g_mime_message_get_date(msg, &date, &offset);
-    if (author != NULL && subject != NULL) {
+    if (author == NULL || subject == NULL || message_id == NULL) {
+      printf("Ignoring %s because invalid header\n", file_name);
+      pa.ignorep = 1;
+    } else {
       /* Get the address from the From header. */
       if ((iaddr_list = internet_address_list_parse_string(author)) != NULL) {
 	iaddr = internet_address_list_get_address(iaddr_list, 0);
@@ -195,12 +198,15 @@ parsed_article *parse_file(const char *file_name) {
       wash_string(pa.author);
 
       pa.date = date;
-      g_object_unref(msg);
-      g_object_unref(parser);
     }
-
   }
+  
+  if (msg)
+    g_object_unref(msg);
+  if (parser)
+    g_object_unref(parser);
   close(file);
+
   return &pa;
 }
 

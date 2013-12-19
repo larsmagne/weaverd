@@ -4,7 +4,7 @@ GMIME_LIBS = `$(GMIME_CONFIG) gmime-2.6 --libs`
 
 HEADER_FILES=config.h util.h hash.h weaver.h input.h dispatch.h
 
-CPPFLAGS=$(GMIME_CFLAGS) -I/usr/local/include -g -O3 -Wall
+CPPFLAGS=$(GMIME_CFLAGS) -I/usr/local/include -g -O0 -Wall
 LDFLAGS=$(GMIME_LIBS)
 CC = gcc $(CPPFLAGS)
 
