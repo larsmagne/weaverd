@@ -92,9 +92,6 @@ int parse_args(int argc, char **argv) {
 static int commands = 0;
 static time_t start_time = 0;
 
-static char *ignore_until = "/mirror/var/spool/news/articles/gmane/linux/skolelinux/cvs";
-static int ignoring_p = 0;
-
 int compare (const void *a, const void *b) {
   return strcmp(*(char**) a, *(char**)b);
 }
@@ -106,11 +103,10 @@ void input_directory(const char* dir_name) {
   struct dirent *dp;
   char file_name[MAX_FILE_NAME];
   struct stat stat_buf;
-  int prohibited_p = 0;
   char *all_files, *files;
   char *all_dirs, *dirs;
   size_t dir_size;
-  int total_files, num_files = 0, i = 0;
+  int total_files = 0, i = 0;
   char **file_array;
 
   printf("%s\n", dir_name); 
@@ -126,82 +122,73 @@ void input_directory(const char* dir_name) {
   // The total size of the file names shouldn't exceed the size
   // of the directory file.  So we just use that as the size.  It's
   // wasteful, but meh.
-  dir_size = stat_buf.st_size + 100;
-  all_files = malloc(dir_size);
-  files = all_files;
+  dir_size = stat_buf.st_size + 1024;
+  files = all_files = malloc(dir_size);
   bzero(all_files, dir_size);
   
-  all_dirs = malloc(dir_size);
-  dirs = all_dirs;
-  bzero(all_dirs, dir_size);
-
   // Go through all the files in the directory and put files
   // in one array and directories in another.
   while ((dp = readdir(dirp)) != NULL) {
     if (strcmp(dp->d_name, ".") &&
         strcmp(dp->d_name, "..")) {
-      snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dp->d_name);
-      if (lstat(file_name, &stat_buf) != -1) {
-        if (S_ISDIR(stat_buf.st_mode)) {
-	  if (! strcmp(file_name, ignore_until))
-	    ignoring_p = 0;
-	  if (ignoring_p == 0) {
-	    strcpy(dirs, dp->d_name);
-	    dirs += strlen(dp->d_name) + 1;
-	  }
-        } else if (S_ISREG(stat_buf.st_mode)) {
-	  if (ignoring_p == 0 && is_number(dp->d_name)) {
-	    total_files++;
-	    num_files++;
-	    strcpy(files, dp->d_name);
-	    files += strlen(dp->d_name) + 1;
-	  }
-        }
-      }
+      total_files++;
+      strcpy(files, dp->d_name);
+      files += strlen(dp->d_name) + 1;
     }
   }
-
   closedir(dirp);
 
+  // Sort the files by name.
   files = all_files;
-  file_array = calloc(sizeof(char*), num_files);
+  file_array = calloc(sizeof(char*), total_files);
   while (*files) {
     file_array[i++] = files;
     files += strlen(files) + 1;
   }
-  qsort(file_array, num_files, sizeof(char*), compare);
+  qsort(file_array, total_files, sizeof(char*), compare);
+  
+  dirs = all_dirs = malloc(dir_size);
+  bzero(all_dirs, dir_size);
 
-  for (i = 0; i < num_files; i++) {
-    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name,
-	     file_array[i]);
-    if (prohibited_p == 0) {
-      prohibited_p = thread_file(file_name);
-      if (!(commands++ % 10000)) {
-	time(&now);
-	elapsed = now - start_time;
-	printf("    %d files (%d/s, last %d seconds)\n",
-	       commands - 1, 
-	       (elapsed?
-		(int)(10000 / elapsed):
-		0), 
-	       elapsed);
-	start_time = now;
-	printf("    %d bytes string storage per file\n",
-	       next_string / commands);
-	mem_usage();
+  // Go through all the files, stat them/thread them, and separate
+  // out the directories.
+  for (i = 0; i < total_files; i++) {
+    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, file_array[i]);
+    if (lstat(file_name, &stat_buf) != -1) {
+      if (S_ISDIR(stat_buf.st_mode)) {
+	strcpy(dirs, file_array[i]);
+	dirs += strlen(file_array[i]) + 1;
+      } else if (S_ISREG(stat_buf.st_mode)) {
+	if (is_number(file_array[i])) {
+	  thread_file(file_name);
+	  if (! (commands++ % 10000)) {
+	    time(&now);
+	    elapsed = now - start_time;
+	    printf("    %d files (%d/s, last %d seconds)\n",
+		   commands - 1, 
+		   (elapsed?
+		    (int)(10000 / elapsed):
+		    0), 
+		   elapsed);
+	    start_time = now;
+	    printf("    %d bytes string storage per file\n",
+		   next_string / commands);
+	    mem_usage();
+	  }
+	}
       }
     }
   }
- free(file_array);
+  free(file_array);
   
- dirs = all_dirs;
- while (*dirs) {
-   snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dirs);
-   input_directory(file_name);
-   dirs += strlen(dirs) + 1;
- }
- free(all_files);
- free(all_dirs);
+  dirs = all_dirs;
+  while (*dirs) {
+    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dirs);
+    input_directory(file_name);
+    dirs += strlen(dirs) + 1;
+  }
+  free(all_files);
+  free(all_dirs);
 }
 
 char *get_group_directory(const char *group) {
@@ -226,7 +213,6 @@ void input_group(const char* group_name) {
   struct dirent *dp;
   char file_name[MAX_FILE_NAME];
   struct stat stat_buf;
-  int prohibited_p = 0;
   char *dir_name = get_group_directory(group_name);
 
   printf("%s\n", dir_name); 
@@ -245,10 +231,8 @@ void input_group(const char* group_name) {
     }
     
     if (! S_ISDIR(stat_buf.st_mode) &&
-	ignoring_p == 0 &&
-	prohibited_p == 0 &&
 	is_number(dp->d_name)) {
-      prohibited_p = thread_file(file_name);
+      thread_file(file_name);
       if (!(commands++ % 10000)) {
 	time(&now);
 	elapsed = now - start_time;
@@ -322,7 +306,7 @@ int main(int argc, char **argv)
     //input_directory("/mirror/var/spool/news/articles/gmane/test");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/graphics/ipe/general");
     //input_directory(spool);
-    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware/ibm/midrange");
+    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware");
     flush();
     clean_up();
     clean_up_hash();
