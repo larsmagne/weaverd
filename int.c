@@ -96,7 +96,7 @@ int compare (const void *a, const void *b) {
   return strcmp(*(char**) a, *(char**)b);
 }
 
-void input_directory(const char* dir_name) {
+void input_directory(const char* dir_name, int recurse) {
   time_t now;
   int elapsed;
   DIR *dirp;
@@ -171,7 +171,7 @@ void input_directory(const char* dir_name) {
 		    0), 
 		   elapsed);
 	    start_time = now;
-	    printf("    %d bytes string storage per file\n",
+	    printf("    %lu bytes string storage per file\n",
 		   next_string / commands);
 	    mem_usage();
 	  }
@@ -181,12 +181,15 @@ void input_directory(const char* dir_name) {
   }
   free(file_array);
   
-  dirs = all_dirs;
-  while (*dirs) {
-    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dirs);
-    input_directory(file_name);
-    dirs += strlen(dirs) + 1;
+  if (recurse) {
+    dirs = all_dirs;
+    while (*dirs) {
+      snprintf(file_name, sizeof(file_name), "%s/%s", dir_name, dirs);
+      input_directory(file_name, recurse);
+      dirs += strlen(dirs) + 1;
+    }
   }
+
   free(all_files);
   free(all_dirs);
 }
@@ -207,49 +210,7 @@ char *get_group_directory(const char *group) {
 }
 
 void input_group(const char* group_name) {
-  time_t now;
-  int elapsed;
-  DIR *dirp;
-  struct dirent *dp;
-  char file_name[MAX_FILE_NAME];
-  struct stat stat_buf;
-  char *dir_name = get_group_directory(group_name);
-
-  printf("%s\n", dir_name); 
-
-  if ((dirp = opendir(dir_name)) == NULL)
-    return;
-    
-  while ((dp = readdir(dirp)) != NULL) {
-
-    snprintf(file_name, sizeof(file_name), "%s/%s", dir_name,
-	     dp->d_name);
-
-    if (stat(file_name, &stat_buf) == -1) {
-      perror("tokenizer");
-      break;
-    }
-    
-    if (! S_ISDIR(stat_buf.st_mode) &&
-	is_number(dp->d_name)) {
-      thread_file(file_name);
-      if (!(commands++ % 10000)) {
-	time(&now);
-	elapsed = now - start_time;
-	printf("    %d files (%d/s, last %d seconds)\n",
-	       commands - 1, 
-	       (elapsed?
-		(int)(10000 / elapsed):
-		0), 
-	       elapsed);
-	start_time = now;
-	printf("    %d bytes string storage per file\n",
-	       next_string / commands);
-	mem_usage();
-      }
-    }
-  }
-  closedir(dirp);
+  input_directory(get_group_directory(group_name), 0);
 }
 
 int main(int argc, char **argv)
@@ -306,7 +267,7 @@ int main(int argc, char **argv)
     //input_directory("/mirror/var/spool/news/articles/gmane/test");
     //input_directory("/mirror/var/spool/news/articles/gmane/comp/graphics/ipe/general");
     //input_directory(spool);
-    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware");
+    input_directory("/mirror/var/spool/news/articles/gmane/comp/hardware", 1);
     flush();
     clean_up();
     clean_up_hash();

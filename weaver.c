@@ -31,8 +31,6 @@ char *index_dir = INDEX_DIR;
 unsigned int current_node = 0;
 static int node_file = 0;
 
-#define MAX_ARTICLES 4000000
-
 static int flattened[MAX_ARTICLES];
 
 void extend_node_storage(void) {
@@ -325,6 +323,10 @@ void flatten_threads(group *tgroup) {
     group_id = tgroup->group_id;
   int i;
 
+  // If we have too many articles, just ignore this group.
+  if (tgroup->max_article >= MAX_ARTICLES)
+    return;
+
   thread_index = 0;
   bzero(flattened, (max + 1) * sizeof(int));
 
@@ -383,8 +385,10 @@ void extend_group_node_tables(group *tgroup, unsigned int min) {
   area = length * sizeof(int);
   new_area = new_length * sizeof(int);
 
-  printf("Extending group node table from %ld to %ld (times two)\n",
-	 area, new_area);
+  if (! strcmp("gmane.linux.ubuntu.bugs.general",
+	       get_string(tgroup->group_name)))
+    printf("Extending group node table from %ld to %ld (times two)\n",
+	   area, new_area);
 
   tgroup->numeric_nodes = (unsigned int*)crealloc(tgroup->numeric_nodes,
 						  new_area,
@@ -1013,7 +1017,7 @@ void init(void) {
   read_conf_file();
 }
 
-int meg(unsigned int size) {
+int meg(size_t size) {
   return size/(1024*1024);
 }
 

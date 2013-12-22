@@ -91,7 +91,6 @@ time_t start_time;
 
 void handle_clients () {
   int wsd;
-  int peerlen;
   socklen_t addlen;
   char *s;
   char buffer[BUFFER_SIZE];
@@ -120,7 +119,6 @@ void handle_clients () {
       perror("weaverd");
       goto out;
     }
-    peerlen = sizeof(struct sockaddr);
 
     i = 0;
     while ((read_result = read(wsd, buffer+i, 1)) >= 0 &&

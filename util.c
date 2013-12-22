@@ -1,5 +1,3 @@
-#define _LARGEFILE64_SOURCE
-
 #include <sys/types.h>
 
 #include <stdio.h>
@@ -18,7 +16,7 @@
 #include <ctype.h>
 #include <unistd.h>
 
-static unsigned int mem_used = 0;
+static size_t mem_used = 0;
 
 /* The same as strcpy, but returns a pointer to the end of the
    destination string. */
@@ -94,7 +92,7 @@ void *crealloc(void *ptr, size_t size, size_t old_size) {
 }
 
 void mem_usage(void) {
-  printf("Used %dMiB\n", mem_used/(1024*1024));
+  printf("Used %luMiB\n", mem_used/(1024*1024));
 }
 
 

@@ -2,8 +2,7 @@
 #define CONFIG_H
 
 #undef DEBUG
-
-#define SMALL
+#undef SMALL
 
 #define MAX_GROUPS (1024 * 64)
 #define GROUP_FILE "groups.db"
@@ -22,11 +21,11 @@
 #define INITIAL_NODE_LENGTH (1024 * 1024)
 #else
 /* Must be powers of two. */
-#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 256)
+#define INITIAL_NODE_TABLE_LENGTH (1024 * 1024 * 512)
 #define STRING_STORAGE_TABLE_LENGTH (1024 * 1024 * 512)
 
-#define INITIAL_STRING_STORAGE_LENGTH ((unsigned int)1024 * 1024 * 4095) 
-#define INITIAL_NODE_LENGTH (1024 * 1024 * 120)
+#define INITIAL_STRING_STORAGE_LENGTH ((size_t)1024 * 1024 * 1024 * 16) 
+#define INITIAL_NODE_LENGTH (1024 * 1024 * 512)
 #endif
 
 #define GROUP_TABLE_LENGTH MAX_GROUPS

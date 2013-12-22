@@ -3,11 +3,11 @@
 
 node *get_node(const char *message_id, unsigned int group_id);
 void init_hash (void);
-unsigned int enter_string_storage(const char *string);
+size_t enter_string_storage(const char *string);
 void flush_hash(void);
 group *get_group(const char *group_name);
 node *get_node(const char *message_id, unsigned int group_id);
-char *get_string(unsigned int offset);
+char *get_string(size_t offset);
 unsigned int previous_instance_node;
 void flush_strings(void);
 group *find_group(const char *group_name);
@@ -23,8 +23,8 @@ char *internal_group_name(const char *external);
 void enter_external_to_internal_group_name_map(const char *external, 
 					       const char *internal);
 
-extern unsigned int next_string;
+extern size_t next_string;
 extern char *string_storage;
-extern unsigned int string_storage_length;
+extern size_t string_storage_length;
 
 #endif

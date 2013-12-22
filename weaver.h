@@ -2,7 +2,8 @@
 #define WEAVER_H
 
 #define MAX_SEARCH_ITEMS 1024
-#define MAX_THREAD_LENGTH 10000
+#define MAX_THREAD_LENGTH 100000
+#define MAX_ARTICLES 8000000
 
 /* This constant can't be changed without altering the structures. */
 #define MAX_THREAD_DEPTH 256
@@ -18,9 +19,9 @@ typedef struct {
   node_id next_instance;       /* Used for cross-posting. */
 
   /* These three are offsets into the string storage. */
-  unsigned int subject;
-  unsigned int author;
-  unsigned int message_id;
+  size_t subject;
+  size_t author;
+  size_t message_id;
   time_t date;
 
   node_id first_child;
@@ -33,11 +34,11 @@ typedef struct {
 } thread_node;
 
 typedef struct {
-  unsigned int group_name;
-  unsigned int group_description;
+  size_t group_name;
+  size_t group_description;
   unsigned int group_id;
   unsigned int relay_status; 
-  unsigned int external_group_name;
+  size_t external_group_name;
   
   unsigned int nodes_on_disk;
   unsigned int next_node;
@@ -69,7 +70,7 @@ void output_group_threads(FILE *client, const char *group_name,
 void output_groups(FILE *client, const char *match);
 void init(void);
 void flatten_groups(void);
-int meg(unsigned int size);
+int meg(size_t size);
 void usage(void);
 void flush(void);
 void output_one_thread(FILE *client, const char *group_name, int article);
@@ -98,7 +99,6 @@ extern group groups[];
 extern node *nodes;
 extern int inhibit_thread_flattening;
 extern int inhibit_file_writes;
-extern unsigned int mem;
 extern unsigned int current_node;
 extern int num_groups;
 extern loff_t nodes_length;

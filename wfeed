@@ -2,8 +2,8 @@
 
 $cutoff = $ARGV[0];
 
-#open (TAIL, "tail -n 800000 -f /tmp/history|") || die;
-open(TAIL, "nc news 8002 |") || die;
+open (TAIL, "tail -n 800000 -f /tmp/history|") || die;
+#open(TAIL, "nc news 8002 |") || die;
 
 $found = 0;
 $found = 1 if (! $cutoff);

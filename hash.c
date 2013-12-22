@@ -1,5 +1,3 @@
-#define _LARGEFILE64_SOURCE
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,11 +18,11 @@
 #include "input.h"
 
 char *string_storage = NULL;
-unsigned int string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
-unsigned int next_string = 0;
+size_t string_storage_length = INITIAL_STRING_STORAGE_LENGTH;
+size_t next_string = 0;
 static int string_storage_file = 0;
 
-static int *string_storage_table = NULL;
+static size_t *string_storage_table = NULL;
 static int string_storage_table_length = STRING_STORAGE_TABLE_LENGTH;
 
 static int *group_table = NULL;
@@ -58,12 +56,12 @@ unsigned int hash(const char *key, unsigned int len,
   return (hash & (table_length - 1));
 } 
 
-char *get_string(unsigned int offset) {
+char *get_string(size_t offset) {
   return string_storage + offset;
 }
 
 void extend_string_storage(void) {
-  unsigned int new_length = string_storage_length * 2;
+  size_t new_length = string_storage_length * 2;
   char *new_string_storage = cmalloc(new_length);
   
   printf("Extending string storage from %dM to %dM\n", 
@@ -74,11 +72,11 @@ void extend_string_storage(void) {
   string_storage_length = new_length;
 }
 
-unsigned int enter_string_storage(const char *string) {
+size_t enter_string_storage(const char *string) {
   int string_length = strlen(string);
   unsigned int search = hash(string, string_length,
 			     string_storage_table_length);
-  unsigned int offset;
+  size_t offset;
 
 #if 0
   int candidate = search;
@@ -114,11 +112,11 @@ unsigned int enter_string_storage(const char *string) {
   return offset;
 }
 
-unsigned int initial_enter_string_storage(const char *string) {
+size_t initial_enter_string_storage(const char *string) {
   int string_length = strlen(string);
   unsigned int search = hash(string, string_length,
 			     string_storage_table_length);
-  unsigned int offset;
+  size_t offset;
 
   while (1) {
     offset = string_storage_table[search];
@@ -172,7 +170,7 @@ void populate_string_table_from_file(int fd) {
 
 void smart_populate_string_table_from_file(int fd) {
   loff_t fsize = file_size(fd);
-  unsigned int offset = 0;
+  size_t offset = 0;
 
   read_block(string_storage_file, string_storage, fsize);
   while (offset < fsize) 
@@ -182,12 +180,12 @@ void smart_populate_string_table_from_file(int fd) {
 void init_string_hash (void) {
   string_storage = cmalloc(string_storage_length);
   string_storage_table =
-    (int*)cmalloc(STRING_STORAGE_TABLE_LENGTH * sizeof(int));
+    (size_t*)cmalloc(STRING_STORAGE_TABLE_LENGTH * sizeof(size_t));
 
 #ifdef USAGE
   printf("Allocating %dM for string storage\n", meg(string_storage_length));
   printf("Allocating %dM for string hash table\n",
-	 meg(STRING_STORAGE_TABLE_LENGTH * sizeof(int)));
+	 meg(STRING_STORAGE_TABLE_LENGTH * sizeof(size_t)));
 #endif
 
   if ((string_storage_file = open64(index_file_name(STRING_STORAGE_FILE),
