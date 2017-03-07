@@ -11,6 +11,8 @@
 #define MAX_STRING_SIZE 10240
 #define NEWS_SPOOL "/mirror/var/spool/news/articles/"
 #define INDEX_DIR "/index/weave"
+#define CONF_FILE "/mnt/etc/gmane.conf"
+
 
 #ifdef SMALL
 /* Must be powers of two. */

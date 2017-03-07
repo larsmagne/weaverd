@@ -443,11 +443,16 @@ void lock_and_uid(char *user) {
 }
 
 void read_conf_file(void) {
-  FILE *conf = fopen("/mnt/etc/gmane.conf", "r");
+  FILE *conf;
   char buf[8192];
   char *string, *group_name, *description, *external_name, *other_names;
   int i = 0;
   group *g;
+
+  if ((conf = fopen(CONF_FILE, "r")) == NULL) {
+    perror(CONF_FILE);
+    exit(1);
+  }
 
   while (fgets(buf, 8192, conf) != NULL) {
     if ((! strstr(buf, "removed")) &&
